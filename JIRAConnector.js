@@ -16,6 +16,10 @@ var winston = require('winston');
 // require('winston-gae');
 
 const tsFormat = () => (new Date()).toString();
+const maxResults = 50;
+const waitTimeForRetry = 1000;
+const frequencyprocessSearchResults = 60000;
+const AllJIRAProjects = 'CIQ, CDN, CONBOGIBEE, CONMF, CONHOWRAH, CONVASHI, CONUMSHIAN, CONPAMBAN, CONNAMDANG, CONHELIX, CONELLIS, CONSEALINK, CONJADUKAT, CONCHENAB';
 
 const logger = new (winston.Logger)({
     transports: [
@@ -41,8 +45,8 @@ var JiraClient = require('jira-connector');
 var jira = new JiraClient({
     host: 'sailpoint.atlassian.net',
     basic_auth: {
-        username: '',
-        password: ''
+        username: 'vikas.bansal',
+        password: 'Iw2baw$2tmpf'
     }
 });
 
@@ -196,7 +200,13 @@ function createEventEntities() {
     }
 }
 
-function processSearchResults(JQLString, cursor, maxResults, updateTime) {
+var processSearchResults = function processSearchResults(JIRAProjects, cursor, updateTime, deltaSince) {
+    var JQLString = 'project in (' + JIRAProjects + ') and  issuetype in (Story, Epic)'
+    if (deltaSince) {
+        var deltaSinceDateObj = new Date(deltaSince);
+        JQLString = JQLString + "  and updatedDate >= '" + deltaSinceDateObj.getFullYear() + "-" + (deltaSinceDateObj.getMonth() + 1) + "-" + deltaSinceDateObj.getDate() + " " + deltaSinceDateObj.getHours() + ":" + deltaSinceDateObj.getMinutes() + "'";
+    }
+    logger.info('JQLString:' + JQLString);
     jira.search.search({
         jql: JQLString,
         startAt: cursor,
@@ -217,15 +227,22 @@ function processSearchResults(JQLString, cursor, maxResults, updateTime) {
         ]
     }, function (error, searchResult) {
         if (error) {
-            logger.error('An error occurred:' + error);
-            // retry
-            processSearchResults(JQLString, cursor, maxResults, updateTime);
+            logger.error('jira.search.search threw an error. Retrying after 5 secs:');
+            logger.error(error);
+            // retry after 5 secs for 5 times
+            setTimeout(processSearchResults, waitTimeForRetry, JIRAProjects, cursor, updateTime, deltaSince);
         }
         else {
             logger.debug(searchResult);
             logger.debug(searchResult.issues.length);
             if (!searchResult || searchResult.issues.length == 0) {
-                logger.info('No issues found for the search criteria.');
+                logger.info('No issues found for the search criteria:' + JQLString);
+                getModel().writeLastUpdateTime(updateTime.getTime(), (err) => {
+                    if (err) logger.error('writeLastUpdateTime failed');
+                    var resetCursor = 0;
+                    setTimeout(processSearchResults, frequencyprocessSearchResults, JIRAProjects, resetCursor, new Date(), updateTime.getTime());
+                    return;
+                });
                 return;
             }
             var issueCounter = 0;
@@ -301,25 +318,8 @@ function processSearchResults(JQLString, cursor, maxResults, updateTime) {
                                 }
                             ;
                             // console.log('about to create PM entity:' + JSON.stringify(PMStoryEntity));
-                            getModel().ds.save(PMStoryEntity, (err) => {
-                                if (err) {
-                                    logger.error(err);
-                                    logger.error('Could not save entity for issueID:' + specificIssue.id + ', key:' + specificIssue.key);
-                                }
-                                else {
-                                    logger.info('PMStory entity created for issueID:' + specificIssue.id + ', key:' + specificIssue.key);
-                                }
-                                issueCounter++;
-                                logger.debug('issueCounter:' + issueCounter + ', totalIssuesInthisSearch:' + searchResult.issues.length);
-                                if (issueCounter == searchResult.issues.length) {
-                                    logger.debug('done with page:' + issueCounter);
-                                    if (cursor + maxResults >= searchResult.total) return;
-                                    else {
-                                        cursor = cursor + maxResults;
-                                        processSearchResults(JQLString, cursor, maxResults, updateTime);
-                                    }
-                                }
-                            });
+                            issueCounter++;
+                            saveEntity(PMStoryEntity, 'PMStory', specificIssue, searchResult.issues.length, searchResult.total, issueCounter, cursor, deltaSince, updateTime, JIRAProjects);
                         }
                         else {
                             var PMStoryKey = null;
@@ -405,27 +405,8 @@ function processSearchResults(JQLString, cursor, maxResults, updateTime) {
                             ;
                             logger.debug('about to create engg entity:' + JSON.stringify(EnggStoryEntity));
                             logger.debug('updateTime:' + updateTime);
-                            getModel().ds.save(EnggStoryEntity, (err) => {
-                                if (err) {
-                                    logger.error('Could not save entity for issueID:' + specificIssue.id + ', key:' + specificIssue.key);
-                                    logger.error(err);
-                                    // resolve();
-                                    // return;
-                                }
-                                else {
-                                    logger.info('updated `EnggStories` for issueID:' + specificIssue.id + ', key:' + specificIssue.key);
-                                }
-                                issueCounter++;
-                                logger.debug('issueCounter:' + issueCounter + ', totalIssuesInthisSearch:' + searchResult.issues.length);
-                                if (issueCounter == searchResult.issues.length) {
-                                    logger.debug('done with page:' + issueCounter);
-                                    if (cursor + maxResults >= searchResult.total) return;
-                                    else {
-                                        cursor = cursor + maxResults;
-                                        processSearchResults(JQLString, cursor, maxResults, updateTime);
-                                    }
-                                }
-                            });
+                            issueCounter++;
+                            saveEntity(EnggStoryEntity, 'EnggStory', specificIssue, searchResult.issues.length, searchResult.total, issueCounter, cursor, deltaSince, updateTime, JIRAProjects);
                         }
                     }
                 }
@@ -435,47 +416,46 @@ function processSearchResults(JQLString, cursor, maxResults, updateTime) {
     });
 }
 
+function saveEntity(entity, entityType, specificIssue, totalIssuesInthisSearch, searchResultTotal, issueCounter, cursor, deltaSince, updateTime, JIRAProjects) {
+    getModel().ds.save(entity, (err) => {
+        if (err) {
+            logger.error('Could not save entity for issueID:' + specificIssue.id + ', key:' + specificIssue.key);
+            logger.error(err);
+        }
+        else {
+            logger.info('updated ' + entityType + ' for issueID:' + specificIssue.id + ', key:' + specificIssue.key);
+        }
+        logger.debug('issueCounter:' + issueCounter + ', totalIssuesInthisSearch:' + totalIssuesInthisSearch);
+        if (issueCounter == totalIssuesInthisSearch) {
+            logger.debug('done with page:' + issueCounter);
+            if (cursor + maxResults >= searchResultTotal) {
+                getModel().writeLastUpdateTime(updateTime.getTime(), (err) => {
+                    if (err) logger.error('writeLastUpdateTime failed');
+                    var resetCursor = 0;
+                    setTimeout(processSearchResults, frequencyprocessSearchResults, JIRAProjects, resetCursor, new Date(), updateTime.getTime());
+                    return;
+                });
+            }
+            else {
+                cursor = cursor + maxResults;
+                processSearchResults(JIRAProjects, cursor, updateTime, deltaSince);
+            }
+        }
+    });
+}
 
 function deltaAgg(optionSelected) {
-    var JQLString = null;
-    // getModel().getLastUpdateTime().then(function(lastUpdateTime) {
-    // var lastUpdateTime = '2017-6-4 12:00';
-    const q = getModel().ds.createQuery(['EnggStory'])
-        .limit(10)
-        .order('entityUpdateTime');
+    var JIRAProjects;
+    if (optionSelected == 'all') JIRAProjects = AllJIRAProjects;
+    else JIRAProjects = optionSelected;
 
-    getModel().ds.runQuery(q, (err, entities, nextQuery) => {
+    getModel().getLastUpdateTime(JIRAProjects, (err, JIRAProjects, deltaSince) => {
+        var cursor = 0;
         if (err) {
+            logger.error('Could not get last update time.');
             logger.error(err);
             return;
         }
-        logger.debug('entities:' + JSON.stringify(entities));
-        if (entities.length == 0) {
-            if (optionSelected == 'all') JQLString = "project in (CIQ, CDN, CONBOGIBEE, CONMF, CONHOWRAH, CONVASHI, CONUMSHIAN, CONPAMBAN, CONNAMDANG, CONHELIX, CONELLIS, CONSEALINK, CONJADUKAT, CONCHENAB) and  issuetype in (Story, Epic)";
-            else JQLString = "project in (" + optionSelected + ") and issuetype = Story";
-        }
-        else {
-            var deltaSinceEnggStoriesDateObj = new Date(entities[0].data.entityUpdateTime);
-            var deltaSincePMStoriesDateObj = null;
-            var deltaSinceDateObj = null;
-            const q = getModel().ds.createQuery(['PMStory'])
-                .limit(10)
-                .order('entityUpdateTime');
-            getModel().ds.runQuery(q, (err, entitiesPM, nextQuery) => {
-                if (err) {
-                    logger.error(err);
-                }
-                deltaSincePMStoriesDateObj = new Date(entitiesPM[0].data.entityUpdateTime);
-            });
-            if (deltaSincePMStoriesDateObj) deltaSinceDateObj = deltaSinceEnggStoriesDateObj < deltaSincePMStoriesDateObj ? deltaSinceEnggStoriesDateObj : deltaSincePMStoriesDateObj
-            else deltaSinceDateObj = deltaSinceEnggStoriesDateObj;
-            var deltaSince = deltaSinceDateObj.getFullYear() + '-' + (deltaSinceDateObj.getMonth() + 1) + '-' + deltaSinceDateObj.getDate() + ' ' + deltaSinceDateObj.getHours() + ':' + deltaSinceDateObj.getMinutes();
-            logger.debug('deltaSince:' + deltaSince);
-            if (optionSelected == 'all') JQLString = "project in (CIQ, CDN, CONBOGIBEE, CONMF, CONHOWRAH, CONVASHI, CONUMSHIAN, CONPAMBAN, CONNAMDANG, CONHELIX, CONELLIS, CONSEALINK, CONJADUKAT, CONCHENAB) and updatedDate >= '" + deltaSince + "' and  issuetype in (Story, Epic)";
-            else JQLString = "project in (" + optionSelected + ") and updatedDate >= '" + deltaSince + "' and issuetype = Story";
-        }
-        var cursor = 0;
-        var maxResults = 50;
-        processSearchResults(JQLString, cursor, maxResults, new Date());
+        processSearchResults(JIRAProjects, cursor, new Date(), deltaSince);
     });
 }
