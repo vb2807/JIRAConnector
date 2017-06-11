@@ -31,7 +31,7 @@ const logger = new (winston.Logger)({
     ]
 });
 
-logger.level = 'debug';
+logger.level = 'info';
 
 
 var pageCounter;
@@ -45,8 +45,8 @@ var JiraClient = require('jira-connector');
 var jira = new JiraClient({
     host: 'sailpoint.atlassian.net',
     basic_auth: {
-        username: 'vikas.bansal',
-        password: 'Iw2baw$2tmpf'
+        username: '',
+        password: ''
     }
 });
 
@@ -57,29 +57,36 @@ function getModel() {
 process.argv.forEach(function (val, index, array) {
     // console.log(index + ': ' + val);
     if (val == 'cleanEngg') {
-        getModel().deleteAllStories('EnggStories', (err) => {
-            if (err) console.log(err);
-            else
-                console.log('In callback after deleting EnggStory');
+        getModel().deleteAllStories('EnggStory', (err) => {
+            if (err) logger.error(err);
+            else logger.debug('In callback after deleting EnggStory');
             return;
-        })
-        ;
-        console.log('EnggStories should be deleted after all callbacks are complete');
+        });
+        logger.info('EnggStory entities should be deleted after all callbacks are complete.');
+        return;
+    }
+
+    if (val == 'clearLastUpdateTime') {
+        getModel().deleteByName('lastUpdateTime', 'lastUpdateTime', (err) => {
+            if (err) logger.error(err);
+            else logger.debug('In callback after deleting entity lastUpdateTime');
+            return;
+        });
+        logger.info('lastUpdateTime entities should be deleted after all callbacks are complete.');
         return;
     }
 
 
     if (val == 'cleanPM') {
-        getModel().deleteAllStories('PMStories', (err) => {
+        getModel().deleteAllStories('PMStory', (err) => {
             if (err) console.log(err);
-            else
-                console.log('In callback after deleting PMStory');
+            else console.log('In callback after deleting PMStory');
             return;
-        })
-        ;
-        console.log('PMStories should be deleted after all callbacks are complete');
+        });
+        console.log('PMStory entities should be deleted after all callbacks are complete.');
         return;
     }
+
     if (val == 'deleteAll') {
         getModel().deleteAllStoriesIteratively((err) => {
             if (err) console.log(err);
@@ -153,7 +160,7 @@ process.argv.forEach(function (val, index, array) {
         return;
     }
     if (val == 'deltaAgg') {
-        deltaAgg(array[index + 1]);
+        _deltaAgg(array[index + 1]);
         return;
     }
 });
@@ -201,7 +208,7 @@ function createEventEntities() {
 }
 
 var processSearchResults = function processSearchResults(JIRAProjects, cursor, updateTime, deltaSince) {
-    var JQLString = 'project in (' + JIRAProjects + ') and  issuetype in (Story, Epic)'
+    var JQLString = "project in (" + JIRAProjects + ") and  issuetype in (Story, Epic) and status = 'Accepted'"
     if (deltaSince) {
         var deltaSinceDateObj = new Date(deltaSince);
         JQLString = JQLString + "  and updatedDate >= '" + deltaSinceDateObj.getFullYear() + "-" + (deltaSinceDateObj.getMonth() + 1) + "-" + deltaSinceDateObj.getDate() + " " + deltaSinceDateObj.getHours() + ":" + deltaSinceDateObj.getMinutes() + "'";
@@ -224,6 +231,10 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
             "assignee",
             "customfield_14407",
             "components"
+        ],
+        expand: [
+            "transitions.fields",
+            "changelog.fields"
         ]
     }, function (error, searchResult) {
         if (error) {
@@ -237,12 +248,15 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
             logger.debug(searchResult.issues.length);
             if (!searchResult || searchResult.issues.length == 0) {
                 logger.info('No issues found for the search criteria:' + JQLString);
+                searchComplete(updateTime, JIRAProjects);
+                /*
                 getModel().writeLastUpdateTime(updateTime.getTime(), (err) => {
                     if (err) logger.error('writeLastUpdateTime failed');
                     var resetCursor = 0;
                     setTimeout(processSearchResults, frequencyprocessSearchResults, JIRAProjects, resetCursor, new Date(), updateTime.getTime());
                     return;
                 });
+                */
                 return;
             }
             var issueCounter = 0;
@@ -361,8 +375,7 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
                                         },
                                         {
                                             name: 'status',
-                                            value: specificIssue.fields.status.name,
-                                            excludeFromIndexes: true
+                                            value: specificIssue.fields.status.name
                                         },
                                         {
                                             name: 'fixVersion',
@@ -394,6 +407,10 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
                                             name: 'timeSpent',
                                             value: specificIssue.fields.timespent,
                                             excludeFromIndexes: true
+                                        },
+                                        {
+                                            name: 'acceptedDate',
+                                            value: specificIssue.fields.status == 'Accepted' ? new Date().toJSON() : null
                                         },
                                         {
                                             name: 'sprint',
@@ -429,12 +446,16 @@ function saveEntity(entity, entityType, specificIssue, totalIssuesInthisSearch, 
         if (issueCounter == totalIssuesInthisSearch) {
             logger.debug('done with page:' + issueCounter);
             if (cursor + maxResults >= searchResultTotal) {
+                searchComplete(updateTime, JIRAProjects);
+                return;
+                /*
                 getModel().writeLastUpdateTime(updateTime.getTime(), (err) => {
                     if (err) logger.error('writeLastUpdateTime failed');
                     var resetCursor = 0;
                     setTimeout(processSearchResults, frequencyprocessSearchResults, JIRAProjects, resetCursor, new Date(), updateTime.getTime());
                     return;
                 });
+                */
             }
             else {
                 cursor = cursor + maxResults;
@@ -444,7 +465,16 @@ function saveEntity(entity, entityType, specificIssue, totalIssuesInthisSearch, 
     });
 }
 
-function deltaAgg(optionSelected) {
+function searchComplete(updateTime, JIRAProjects) {
+    getModel().writeLastUpdateTime(updateTime.getTime(), (err) => {
+        if (err) logger.error('writeLastUpdateTime failed');
+        var resetCursor = 0;
+        setTimeout(processSearchResults, frequencyprocessSearchResults, JIRAProjects, resetCursor, new Date(), updateTime.getTime());
+        return;
+    });
+}
+
+function _deltaAgg(optionSelected) {
     var JIRAProjects;
     if (optionSelected == 'all') JIRAProjects = AllJIRAProjects;
     else JIRAProjects = optionSelected;
@@ -458,4 +488,8 @@ function deltaAgg(optionSelected) {
         }
         processSearchResults(JIRAProjects, cursor, new Date(), deltaSince);
     });
+}
+
+module.exports = {
+    deltaAgg: _deltaAgg
 }
