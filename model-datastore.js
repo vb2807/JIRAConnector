@@ -17,6 +17,9 @@
 
 'use strict';
 
+
+const JIRAConnector = require('./JIRAConnector.js');
+
 const Datastore = require('@google-cloud/datastore');
 const config = require('./config');
 
@@ -25,6 +28,23 @@ const ds = Datastore({
     projectId: config.get('GCLOUD_PROJECT')
     // projectId: "pmproject-164704"
 });
+
+var winston = require('winston');
+
+const tsFormat = () => (new Date()).toString();
+
+const logger = new (winston.Logger)({
+    transports: [
+        // colorize the output to the console
+        new (winston.transports.Console)({
+            timestamp: tsFormat,
+            colorize: true,
+        })
+    ]
+});
+
+logger.level = 'debug';
+
 // const kind = 'PMStory';
 // [END config]
 
@@ -158,43 +178,6 @@ function fetchEnggStories (pmstoryid, cb) {
     });
 }
 
-function asyncFetchEnggStories (event, pmstoryid, cb) {
-    console.log('asyncFetchEnggStories:' + pmstoryid);
-    const PMStoryKey = ds.key(['Event', event, 'PMStories', parseInt(pmstoryid, 10)]);
-    // const PMStoryKey = ds.key(['PMStories', pmstoryid]);
-    const q = ds.createQuery(['EnggStories'])
-        .hasAncestor(PMStoryKey);
-
-    ds.runQuery(q, (err, entities, nextQuery) => {
-        if (err) {
-            cb(err);
-            return;
-        }
-        const hasMore = nextQuery.moreResults !== Datastore.NO_MORE_RESULTS ? nextQuery.endCursor : false;
-        if (!entities) {
-            cb('Something wrong. engg stories for PMStory:' + pmstoryid + ' is null', null);
-        }
-        if (entities) {
-            var count = entities.length;
-            var returnObj = [];
-            if (entities.length == 0) {
-                console.log('there are no engg stories for PMStory:' + pmstoryid);
-                returnObj.push([]);
-                cb(null, returnObj);
-            }
-            for (var i=0; i < entities.length; i++) {
-                returnObj.push(fromDatastore(entities[i]));
-                console.log('pushed engg story:' + entities[i].key.id + ', for PMStory:' + pmstoryid);
-                count --;
-                if(count == 0) {
-                    console.log('completed pushing engg stories for PMStory:' + pmstoryid);
-                    cb(null, returnObj);
-                }
-            }
-        }
-    });
-}
-
 function asyncFetchEvents (cb) {
     // console.log('asyncFetchEvents:');
     const q = ds.createQuery(['Event']);
@@ -229,53 +212,94 @@ function asyncFetchEvents (cb) {
     });
 }
 
-function fetchComboStories (event, cb) {
-    const EventKey = ds.key(['Event', event]);
-    const q = ds.createQuery(['PMStories'])
-        .hasAncestor(EventKey);
+
+function asyncFetchEnggStories (event, pmstoryid, cb) {
+    console.log('asyncFetchEnggStories:' + pmstoryid);
+    // const PMStoryKey = ds.key(['Event', event, 'PMStories', parseInt(pmstoryid, 10)]);
+    // const PMStoryKey = ds.key(['PMStories', pmstoryid]);
+    const q = ds.createQuery(['EnggStory'])
+        .filter('PMStoryID', '=', pmstoryid);
 
     ds.runQuery(q, (err, entities, nextQuery) => {
         if (err) {
             cb(err);
             return;
         }
-        // const hasMore = nextQuery.moreResults !== Datastore.NO_MORE_RESULTS ? nextQuery.endCursor : false;
+        const hasMore = nextQuery.moreResults !== Datastore.NO_MORE_RESULTS ? nextQuery.endCursor : false;
+        if (!entities) {
+            cb('Something wrong. engg stories for PMStory:' + pmstoryid + ' is null', null);
+        }
+        if (entities) {
+            var count = entities.length;
+            var returnObj = [];
+            if (entities.length == 0) {
+                console.log('there are no engg stories for PMStory:' + pmstoryid);
+                returnObj.push([]);
+                cb(null, returnObj);
+            }
+            for (var i=0; i < entities.length; i++) {
+                returnObj.push(fromDatastore(entities[i]));
+                console.log('pushed engg story:' + entities[i].key.id + ', for PMStory:' + pmstoryid);
+                count --;
+                if(count == 0) {
+                    console.log('completed pushing engg stories for PMStory:' + pmstoryid);
+                    cb(null, returnObj);
+                }
+            }
+        }
+    });
+}
+
+function fetchComboStories (cb) {
+    // const EventKey = ds.key(['Event', event]);
+    const q = ds.createQuery(['PMStory'])
+        .filter('status', '=', 'In Execution');
+
+    ds.runQuery(q, (err, entities) => {
+        if (err) {
+            cb(err);
+            return;
+        }
         if(!entities || entities.length == 0) {
             cb(null, null);
             return;
         }
         if(entities) {
             var count = entities.length;
-            console.log('count total:' + count);
+            logger.debug('count total:' + count);
             var comboObj = [];
             // console.log('length of entities map:' + entities.map().length);
             entities.forEach(function(x) {
                 console.log(x.key.id);
-                asyncFetchEnggStories(event, x.key.id, (err, enggStories) => {
+                asyncFetchEnggStories( x.key.id, (err, enggStories) => {
                     if (err) {
-                        console.log('could not get enggStories for PMStory:' + x.key.id);
-                        console.log(err);
+                        logger.error('could not get enggStories for PMStory:' + x.key.id);
+                        logger.error(err);
                         count --;
                         if (count == 0) {
-                            console.log('completed comboObjs for all PMStories. calling the call back');
+                            logger.info('completed comboObjs for all PMStories. calling the call back');
                             cb(null, comboObj);
                         }
                     }
                     if (enggStories) {
-                        console.log('call back after obtaining all enggstories for PMStory:' + x.key.id);
+                        logger.debug('call back after obtaining all enggstories for PMStory:' + x.key.id);
                         count --;
+                        var acceptedStories
+                        for (var i =0; i < enggStories.length; i++) {
+
+                        }
                         comboObj.push({pmstory: fromDatastore(x), enggstories: enggStories});
-                        console.log('pushed the combo object for PMStory:' + x.key.id + ', count:' + count);
+                        logger.info('pushed the combo object for PMStory:' + x.key.id + ', count:' + count);
                         if (count == 0) {
-                            console.log('completed comboObjs for all PMStories. calling the call back');
+                            logger.info('completed comboObjs for all PMStories. calling the call back');
                             cb(null, comboObj);
                         }
                     }
                     if (!err && !enggStories) {
-                        console.log('not sure what happended. call back after obtaining all enggstories for PMStory:' + x.key.id);
+                        logger.error('not sure what happended. call back after obtaining all enggstories for PMStory:' + x.key.id);
                         count --;
                         if (count == 0) {
-                            console.log('completed comboObjs for all PMStories. calling the call back');
+                            logger.info('completed comboObjs for all PMStories. calling the call back');
                             cb(null, comboObj);
                         }
                     }
@@ -458,6 +482,7 @@ function getPMStoriesInExecution (kind, limit, token, cb) {
 // data is automatically translated into Datastore format. The book will be
 // queued for background processing.
 // [START update]
+
 function createkey(kind, id, parentKind, parentID) {
     let key;
     if(parentKind == null && parentID == null){
@@ -509,13 +534,109 @@ function update (kind, id, parentKind, parentId, data, cb) {
 }
 // [END update]
 
+function _createIteration (iterationName, data, cb) {
+    let key;
+    if (iterationName) {
+        key = ds.key(['Iteration', iterationName]);
+    } else {
+        cb ('Iteration name not provided.');
+        return;
+    }
+
+    const entity = {
+        key: key,
+        data: data
+    };
+
+    ds.save(
+        entity,
+        (err) => {
+            if (err) cb(err);
+            else cb(null, iterationName, data);
+        }
+    );
+}
+
+function _upsertIteration (iterationName, data, cb) {
+    let key;
+    if (iterationName) {
+        key = ds.key(['Iteration', iterationName]);
+    } else {
+        cb ('Iteration name not provided.');
+        return;
+    }
+
+    ds.get(key, (err, entity) => {
+        if (err) {
+            cb(err);
+            return;
+        }
+        if (!entity) {
+            const newEntity = {
+                key: key,
+                data: data
+            };
+
+            ds.save(
+                newEntity,
+                (err) => {
+                    if (err) cb(err);
+                    else cb(null, fromDatastore(newEntity), newEntity.key.name);
+                }
+            );
+            return;
+        }
+        cb(null, fromDatastore(entity), entity.key.name);
+    });
+
+}
+
+function _getIterationStartDate (iterationName, cb) {
+    let key;
+    if (iterationName) {
+        key = ds.key(['Iteration', iterationName]);
+    } else {
+        cb ('Iteration name not provided.');
+        return;
+    }
+
+    ds.get(key, (err, entity) => {
+        if (err) {
+            cb(err);
+            return;
+        }
+        if (!entity) {
+            logger.error('Sprint Not Found. iterationName:' + iterationName);
+            cb(null, 'Sprint Not Found');
+            return;
+        }
+        cb(null, entity.data.startDate);
+        return;
+    });
+}
+
+
 function create (kind, id, parentKind, parentId, data, cb) {
     update(kind, id, parentKind, parentId, data, cb);
 }
 
-function read (kind, id, parentID, eventName, cb) {
-    const key = ds.key(['Event', eventName, 'PMStories', parseInt(parentID, 10), kind, parseInt(id, 10)]);
-    // const key = ds.key(['PMStories', parentID, kind, id]);
+function read (kind, id, cb) {
+    const key = ds.key([kind, parseInt(id, 10)]);
+    ds.get(key, (err, entity) => {
+        if (err) {
+            cb(err);
+            return;
+        }
+        if (!entity) {
+            cb(null, null);
+            return;
+        }
+        cb(null, fromDatastore(entity));
+    });
+}
+
+function _readViaName (kind, keyName, cb) {
+    const key = ds.key([kind, keyName]);
     ds.get(key, (err, entity) => {
         if (err) {
             cb(err);
@@ -549,27 +670,35 @@ function _delete (kind, id, cb) {
     ds.delete(key, cb);
 }
 
+function _deleteByName (kind, id, cb) {
+    // const key = ds.key([kind, parseInt(id, 10)]);
+    const key = ds.key([kind, id]);
+    ds.delete(key, cb);
+}
+
 function _deleteAllStories (kind, cb) {
     const q = ds.createQuery([kind]);
 
-    ds.runQuery(q, (err, entities, nextQuery) => {
+    ds.runQuery(q, (err, entities) => {
         if (err) {
             cb(err);
             return;
         }
-        // const hasMore = nextQuery.moreResults !== Datastore.NO_MORE_RESULTS ? nextQuery.endCursor : false;
-        // cb(null, entities.map(fromDatastore), hasMore);
         entities.forEach(function(x) {
             _delete(kind, x.key.id, (err) => {
                 if (err) {
                     console.log('Error in deleting story. Kind:' + kind + ', key:' + x.key.id);
+                    console.log(err);
                     cb(err);
                     return;
                 }
-                else console.log('Deleted story. Kind:' + kind + ', key:' + x.key.id);
+                else {
+                    console.log('Deleted story. Kind:' + kind + ', id:' + x.key.id + ', key:' + x.data.currentKey);
+                    cb(null);
+                    return;
+                }
             });
         });
-        cb(null);
     });
 }
 
@@ -695,6 +824,11 @@ module.exports = {
     writeLastUpdateTime: _writeLastUpdateTime,
     reverseLastUpdateTime: _reverseLastUpdateTime,
     getPMStoryEntityViaJIRAKey: _getPMStoryEntityViaJIRAKey,
+    deleteByName: _deleteByName,
+    createIteration: _createIteration,
+    readViaName: _readViaName,
+    upsertIteration: _upsertIteration,
+    getIterationStartDate: _getIterationStartDate,
     ds
 };
 // [END exports]

@@ -31,7 +31,7 @@ const logger = new (winston.Logger)({
     ]
 });
 
-logger.level = 'info';
+logger.level = 'debug';
 
 
 var pageCounter;
@@ -45,8 +45,8 @@ var JiraClient = require('jira-connector');
 var jira = new JiraClient({
     host: 'sailpoint.atlassian.net',
     basic_auth: {
-        username: '',
-        password: ''
+        username: 'vikas.bansal',
+        password: 'Iw2baw$2tmpf'
     }
 });
 
@@ -208,7 +208,9 @@ function createEventEntities() {
 }
 
 var processSearchResults = function processSearchResults(JIRAProjects, cursor, updateTime, deltaSince) {
-    var JQLString = "project in (" + JIRAProjects + ") and  issuetype in (Story, Epic) and status = 'Accepted'"
+    var JQLString = "project in (" + JIRAProjects + ") and  issuetype in (Story, Epic)"
+    // var JQLString = "key in (CONNAMDANG-583)";
+    // var JQLString = "key in (CONHOWRAH-459)";
     if (deltaSince) {
         var deltaSinceDateObj = new Date(deltaSince);
         JQLString = JQLString + "  and updatedDate >= '" + deltaSinceDateObj.getFullYear() + "-" + (deltaSinceDateObj.getMonth() + 1) + "-" + deltaSinceDateObj.getDate() + " " + deltaSinceDateObj.getHours() + ":" + deltaSinceDateObj.getMinutes() + "'";
@@ -233,8 +235,12 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
             "components"
         ],
         expand: [
-            "transitions.fields",
-            "changelog.fields"
+//            "operations.fields",
+//            "versionedRepresentations.fields",
+//            "editmeta.fields",
+            "changelog.fields",
+//            "transitions.fields",
+//            "renderedFields.fields"
         ]
     }, function (error, searchResult) {
         if (error) {
@@ -249,14 +255,6 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
             if (!searchResult || searchResult.issues.length == 0) {
                 logger.info('No issues found for the search criteria:' + JQLString);
                 searchComplete(updateTime, JIRAProjects);
-                /*
-                getModel().writeLastUpdateTime(updateTime.getTime(), (err) => {
-                    if (err) logger.error('writeLastUpdateTime failed');
-                    var resetCursor = 0;
-                    setTimeout(processSearchResults, frequencyprocessSearchResults, JIRAProjects, resetCursor, new Date(), updateTime.getTime());
-                    return;
-                });
-                */
                 return;
             }
             var issueCounter = 0;
@@ -268,8 +266,10 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
                         // let's check if this is PM Story or Engg Story
                         var PMStoryFlag = false;
                         var scrum = specificIssue.key.slice(0, specificIssue.key.indexOf("-"));
+                        // let's check if it's a PMStory
                         if (scrum == 'CIQ' || scrum == 'CDN' || scrum == 'CONPM' || scrum == 'CON') PMStoryFlag = true;
                         if (PMStoryFlag) {
+                            /*
                             if (specificIssue.fields.assignee == null) {
                                 jira.issue.addComment({
                                     issueId: specificIssue.id,
@@ -279,6 +279,7 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
                                     else logger.error("Assigneed not defined for:" + specificIssue.key);
                                 });
                             }
+                            */
                             var PMStoryKey = getModel().ds.key(['PMStory', parseInt(specificIssue.id, 10)]);
                             var PMStoryEntity = {
                                     key: PMStoryKey,
@@ -336,94 +337,17 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
                             saveEntity(PMStoryEntity, 'PMStory', specificIssue, searchResult.issues.length, searchResult.total, issueCounter, cursor, deltaSince, updateTime, JIRAProjects);
                         }
                         else {
-                            var PMStoryKey = null;
-                            var PMStoryID = null;
-                            for (var indexLink = 0; indexLink < specificIssue.fields.issuelinks.length; indexLink++) {
-                                var specificIssueLink = specificIssue.fields.issuelinks[indexLink];
-                                if (specificIssueLink.inwardIssue && (specificIssueLink.type.inward.toLowerCase() == 'is caused by' || specificIssueLink.type.inward.toLowerCase() == 'relates to')) {
-                                    PMStoryKey = specificIssueLink.inwardIssue.key;
-                                    PMStoryID = specificIssueLink.inwardIssue.id;
-                                    break;
+                            // It's an EnggStory
+                            // let's find its parent PMStory
+                            getModel().read('EnggStory', specificIssue.id, (err, curentEnggEntity) => {
+                                if (err) {
+                                    logger.error('Error in reading curentEnggEntity. key' + specificIssue.key);
+                                    logger.error(err);
+                                    return;
                                 }
-                            }
-                            var EnggStoryEntityKey = getModel().ds.key(['EnggStory', parseInt(specificIssue.id, 10)]);
-                            var EnggStoryEntity = {
-                                    key: EnggStoryEntityKey,
-                                    data: [
-                                        {
-                                            name: 'entityUpdateTime',
-                                            value: updateTime.toJSON()
-                                        },
-                                        {
-                                            name: 'PMStoryID',
-                                            value: PMStoryID
-                                        },
-                                        {
-                                            name: 'PMStoryKey',
-                                            value: PMStoryKey,
-                                            excludeFromIndexes: true
-                                        },
-                                        {
-                                            name: 'currentKey',
-                                            value: specificIssue.key,
-                                            excludeFromIndexes: true
-                                        },
-                                        {
-                                            name: 'summary',
-                                            value: specificIssue.fields.summary,
-                                            excludeFromIndexes: true
-                                        },
-                                        {
-                                            name: 'status',
-                                            value: specificIssue.fields.status.name
-                                        },
-                                        {
-                                            name: 'fixVersion',
-                                            value: specificIssue.fields.fixVersions.map((obj) => {
-                                                return obj.name
-                                            }),
-                                            excludeFromIndexes: true
-                                        },
-                                        {
-                                            name: 'storyPoints',
-                                            value: specificIssue.fields.customfield_10109 == null ? null : specificIssue.fields.customfield_10109,
-                                            excludeFromIndexes: true
-                                        },
-                                        {
-                                            name: 'scrum',
-                                            value: scrum
-                                        },
-                                        {
-                                            name: 'issueType',
-                                            value: specificIssue.fields.issuetype.name,
-                                            excludeFromIndexes: true
-                                        },
-                                        {
-                                            name: 'dateCreated',
-                                            value: specificIssue.fields.created,
-                                            excludeFromIndexes: true
-                                        },
-                                        {
-                                            name: 'timeSpent',
-                                            value: specificIssue.fields.timespent,
-                                            excludeFromIndexes: true
-                                        },
-                                        {
-                                            name: 'acceptedDate',
-                                            value: specificIssue.fields.status == 'Accepted' ? new Date().toJSON() : null
-                                        },
-                                        {
-                                            name: 'sprint',
-                                            value: specificIssue.fields.customfield_10016,
-                                            excludeFromIndexes: true
-                                        }
-                                    ]
-                                }
-                            ;
-                            logger.debug('about to create engg entity:' + JSON.stringify(EnggStoryEntity));
-                            logger.debug('updateTime:' + updateTime);
-                            issueCounter++;
-                            saveEntity(EnggStoryEntity, 'EnggStory', specificIssue, searchResult.issues.length, searchResult.total, issueCounter, cursor, deltaSince, updateTime, JIRAProjects);
+                                issueCounter++;
+                                upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateTime, scrum, searchResult, cursor, deltaSince, JIRAProjects);
+                            });
                         }
                     }
                 }
@@ -431,6 +355,210 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
             ;
         }
     });
+}
+
+function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateTime, scrum, searchResult, cursor, deltaSince, JIRAProjects) {
+    var PMStoryKey = null;
+    var PMStoryID = null;
+    for (var indexLink = 0; indexLink < specificIssue.fields.issuelinks.length; indexLink++) {
+        var specificIssueLink = specificIssue.fields.issuelinks[indexLink];
+        if (specificIssueLink.inwardIssue && (specificIssueLink.type.inward.toLowerCase() == 'is caused by' || specificIssueLink.type.inward.toLowerCase() == 'relates to')) {
+            PMStoryKey = specificIssueLink.inwardIssue.key;
+            PMStoryID = specificIssueLink.inwardIssue.id;
+            break;
+        }
+    }
+
+    // let's get its changelog
+    var arrayHistories = specificIssue.changelog.histories;
+    var acceptedDate = null;
+    var statusHistory = (curentEnggEntity == null ? [] : curentEnggEntity.statusHistory);
+    var sprintHistory = (curentEnggEntity == null ? [] : curentEnggEntity.sprintHistory);
+    var storyPointsHistory = (curentEnggEntity == null ? [] : curentEnggEntity.storyPointsHistory);
+    var fixVersionHistory = (curentEnggEntity == null ? [] : curentEnggEntity.fixVersionHistory);
+
+    for (var indexHistories = (arrayHistories.length-1); indexHistories >= 0; indexHistories--) {
+        var specificHistory = arrayHistories[indexHistories];
+        // if we are doing delta agg and if this history is old then ignore
+        var dateHistory = new Date(specificHistory.created);
+        if (deltaSince) {
+            var deltaSinceDateObj = new Date(deltaSince);
+            if (dateHistory.getTime() < deltaSinceDateObj.getTime()) continue;
+        }
+        dateHistory = dateHistory.getFullYear() + '-' + (dateHistory.getMonth() + 1) + '-' + dateHistory.getDate()
+        for (var indexSpecificHistoryItems = 0; indexSpecificHistoryItems < specificHistory.items.length; indexSpecificHistoryItems++) {
+            var historyItem = specificHistory.items[indexSpecificHistoryItems];
+            if(historyItem.field == 'status') {
+                statusHistory.push(JSON.stringify([dateHistory, historyItem.fromString, historyItem.toString]));
+                if (historyItem.toString == 'Accepted' && !acceptedDate) {
+                    let acceptedDateDateObj = new Date(specificHistory.created);
+                    acceptedDate = acceptedDateDateObj.getFullYear() + '-' + (acceptedDateDateObj.getMonth() + 1) + '-' + acceptedDateDateObj.getDate();
+                }
+            }
+            if(historyItem.field == 'Sprint') {
+                sprintHistory.push(JSON.stringify([dateHistory, historyItem.fromString, historyItem.toString]));
+            }
+            if(historyItem.field == 'Story Points') {
+                storyPointsHistory.push(JSON.stringify([dateHistory, historyItem.fromString, historyItem.toString]));
+            }
+            if(historyItem.field == 'Fix Version') {
+                fixVersionHistory.push(JSON.stringify([dateHistory, historyItem.fromString, historyItem.toString]));
+            }
+        }
+    }
+    logger.debug('sprintHistory:' + sprintHistory);
+    var firstSprint = null;
+    if(sprintHistory.length != 0) {
+        logger.debug('sprintHistory.length:' + sprintHistory.length);
+        var firstSprintStringfied = sprintHistory[sprintHistory.length - 1];
+        logger.debug('firstSprintStringfied:' + firstSprintStringfied);
+        var firstSprintArray = JSON.parse(firstSprintStringfied);
+        firstSprint = (firstSprintArray[1] != null ?  firstSprintArray[1] : firstSprintArray[2]);
+    }
+    logger.debug('firstSprint:' + firstSprint);
+    if (firstSprint) {
+        getModel().getIterationStartDate(firstSprint, (err, firstSprintStartDate) => {
+            if (err) {
+                logger.error(err);
+                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null);
+                return;
+            }
+            if (!firstSprintStartDate) {
+                logger.error('firstSprintStartDate:' + firstSprintStartDate);
+                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null);
+                return;
+            }
+            if (firstSprintStartDate) {
+                logger.debug('firstSprintStartDate:' + firstSprintStartDate);
+                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, firstSprintStartDate);
+                return;
+            }
+        });
+    }
+    else
+        buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null);
+}
+
+function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, firstSprintStartDate) {
+    var EnggStoryEntityKey = getModel().ds.key(['EnggStory', parseInt(specificIssue.id, 10)]);
+    /*
+    var currentSprint = null;
+    if(sprintHistory.length != 0) {
+        let firstRecordinSpringHistory = sprintHistory[0];
+        logger.debug('firstRecordinSpringHistory:' + firstRecordinSpringHistory)
+        currentSprint = firstRecordinSpringHistory[2];
+        logger.debug('currentSprint:' + currentSprint);
+    }
+    for (var currentSprintIndex = 0; specificIssue.fields.customfield_10016 && (currentSprintIndex < specificIssue.fields.customfield_10016.length); currentSprintIndex++) {
+        logger.debug('specificIssue.fields.customfield_10016[currentSprintIndex]:' + specificIssue.fields.customfield_10016[currentSprintIndex]);
+        logger.debug('specificIssue.fields.customfield_10016[currentSprintIndex].name:' + specificIssue.fields.customfield_10016[currentSprintIndex].name);
+
+        currentSprint.push(specificIssue.fields.customfield_10016[currentSprintIndex].name);
+    }
+    */
+
+    var EnggStoryEntity = {
+        key: EnggStoryEntityKey,
+        data: [
+            {
+                name: 'entityUpdateTime',
+                value: updateTime.toJSON()
+            },
+            {
+                name: 'PMStoryID',
+                value: PMStoryID
+            },
+            {
+                name: 'PMStoryKey',
+                value: PMStoryKey,
+                excludeFromIndexes: true
+            },
+            {
+                name: 'currentKey',
+                value: specificIssue.key,
+                excludeFromIndexes: true
+            },
+            {
+                name: 'summary',
+                value: specificIssue.fields.summary,
+                excludeFromIndexes: true
+            },
+            {
+                name: 'currentStatus',
+                value: specificIssue.fields.status.name
+            },
+            {
+                name: 'statusHistory',
+                value: statusHistory,
+                excludeFromIndexes: true
+            },
+            {
+                name: 'fixVersion',
+                value: specificIssue.fields.fixVersions.map((obj) => {
+                    return obj.name
+                }),
+                excludeFromIndexes: true
+            },
+            {
+                name: 'fixVersionHistory',
+                value: fixVersionHistory,
+                excludeFromIndexes: true
+            },
+            {
+                name: 'storyPoints',
+                value: specificIssue.fields.customfield_10109 == null ? null : specificIssue.fields.customfield_10109,
+                excludeFromIndexes: true
+            },
+            {
+                name: 'storyPointsHistory',
+                value: storyPointsHistory,
+                excludeFromIndexes: true
+            },
+            {
+                name: 'scrum',
+                value: scrum
+            },
+            {
+                name: 'issueType',
+                value: specificIssue.fields.issuetype.name,
+                excludeFromIndexes: true
+            },
+            {
+                name: 'dateCreated',
+                value: specificIssue.fields.created.substring(0,10)
+            },
+            {
+                name: 'timeSpent',
+                value: specificIssue.fields.timespent,
+                excludeFromIndexes: true
+            },
+            {
+                name: 'acceptedDate',
+                value: acceptedDate
+            },
+            {
+                name: 'currentSprint',
+                value: specificIssue.fields.customfield_10016
+                // value: currentSprint
+            },
+            {
+                name: 'firstSprint',
+                value: firstSprint
+            },
+            {
+                name: 'firstSprintStartDate',
+                value: firstSprintStartDate
+            },
+            {
+                name: 'sprintHistory',
+                value: sprintHistory,
+                excludeFromIndexes: true
+            }
+        ]
+    };
+    logger.debug('about to create engg entity:' + JSON.stringify(EnggStoryEntity));
+    logger.debug('updateTime:' + updateTime);
+    saveEntity(EnggStoryEntity, 'EnggStory', specificIssue, searchResult.issues.length, searchResult.total, issueCounter, cursor, deltaSince, updateTime, JIRAProjects);
 }
 
 function saveEntity(entity, entityType, specificIssue, totalIssuesInthisSearch, searchResultTotal, issueCounter, cursor, deltaSince, updateTime, JIRAProjects) {
@@ -448,14 +576,6 @@ function saveEntity(entity, entityType, specificIssue, totalIssuesInthisSearch, 
             if (cursor + maxResults >= searchResultTotal) {
                 searchComplete(updateTime, JIRAProjects);
                 return;
-                /*
-                getModel().writeLastUpdateTime(updateTime.getTime(), (err) => {
-                    if (err) logger.error('writeLastUpdateTime failed');
-                    var resetCursor = 0;
-                    setTimeout(processSearchResults, frequencyprocessSearchResults, JIRAProjects, resetCursor, new Date(), updateTime.getTime());
-                    return;
-                });
-                */
             }
             else {
                 cursor = cursor + maxResults;
