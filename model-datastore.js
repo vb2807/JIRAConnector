@@ -213,7 +213,7 @@ function asyncFetchEvents (cb) {
 }
 
 
-function asyncFetchEnggStories (event, pmstoryid, cb) {
+function asyncFetchEnggStories (iterationEndDateMsec, pmstoryid, cb) {
     console.log('asyncFetchEnggStories:' + pmstoryid);
     // const PMStoryKey = ds.key(['Event', event, 'PMStories', parseInt(pmstoryid, 10)]);
     // const PMStoryKey = ds.key(['PMStories', pmstoryid]);
@@ -225,11 +225,11 @@ function asyncFetchEnggStories (event, pmstoryid, cb) {
             cb(err);
             return;
         }
-        const hasMore = nextQuery.moreResults !== Datastore.NO_MORE_RESULTS ? nextQuery.endCursor : false;
         if (!entities) {
             cb('Something wrong. engg stories for PMStory:' + pmstoryid + ' is null', null);
         }
         if (entities) {
+            logger.debug('entities:' + JSON.stringify(entities));
             var count = entities.length;
             var returnObj = [];
             if (entities.length == 0) {
@@ -237,20 +237,74 @@ function asyncFetchEnggStories (event, pmstoryid, cb) {
                 returnObj.push([]);
                 cb(null, returnObj);
             }
+            var acceptedStoriesThisIteration = 0;
+            var totalStoriesThisIteration = 0;
+            var acceptedStoriesLastIteration = 0;
+            var totalStoriesLastIteration = 0;
+
             for (var i=0; i < entities.length; i++) {
-                returnObj.push(fromDatastore(entities[i]));
+                let entityData = fromDatastore(entities[i]);
+                var acceptedDateMsec = new Date(entityData.acceptedDate).getTime();
+                var dateCreatedMsec = new Date(entityData.dateCreated).getTime();
+                var firstSprintStartDateMsec = new Date(entityData.firstSprintStartDate).getTime();
+
+                if (entityData.status == 'Accepted' && (acceptedDateMsec <= iterationEndDateMsec)) acceptedStoriesThisIteration++;
+                if (entityData.status == 'Accepted' && (acceptedDateMsec <= (iterationEndDateMsec - 14*24*60*60*1000))) acceptedStoriesLastIteration++;
+                totalStoriesThisIteration++
+                if (dateCreatedMsec <= (iterationEndDateMsec - 14*24*60*60*1000)) totalStoriesLastIteration++;
+                var queueTime = parseInt((entityData.firstSprintStartDate ? (new Date().getTime() - dateCreatedMsec) /(1000*60*60*24) : (firstSprintStartDateMsec - dateCreatedMsec) /(1000*60*60*24)), 10);
+                var months = 0;
+                while (queueTime >= 30) {
+                    months++;
+                    queueTime = queueTime - 30;
+                }
+                var weeks = 0;
+                while (queueTime >= 7) {
+                    weeks++;
+                    queueTime = queueTime - 7;
+                }
+                var queueTimeStr = null;
+                if(months > 0) queueTimeStr = months + 'm';
+                if(weeks > 0) queueTimeStr = queueTimeStr ? (queueTimeStr + ' ' + weeks + 'w') : (weeks + 'w');
+                if(queueTime > 0) queueTimeStr = queueTimeStr ? (queueTimeStr + ' ' + queueTime + 'd') : (queueTime + 'd');
+                entityData.queueTime = queueTimeStr;
+
+                var cycleTime;
+                var cycleTimeStr = null;
+                if (entityData.firstSprintStartDate) {
+                    cycleTime = parseInt((entityData.status == 'Accepted'? ((acceptedDateMsec - firstSprintStartDateMsec) / (1000*60*60*24)) : ((new Date().getTime() - firstSprintStartDateMsec) / (1000*60*60*24))), 10);
+                }
+                else {
+                    if (entityData.status == 'Accepted') cycleTime = parseInt(((acceptedDateMsec - dateCreatedMsec) / (1000*60*60*24)), 10);
+                }
+                months = 0;
+                while (cycleTime >= 30) {
+                    months++;
+                    cycleTime = cycleTime - 30;
+                }
+                weeks = 0;
+                while (cycleTime >= 7) {
+                    weeks++;
+                    cycleTime = cycleTime - 7;
+                }
+                if(months > 0) cycleTimeStr = months + 'm';
+                if(weeks > 0) cycleTimeStr = cycleTimeStr ? (cycleTimeStr + ' ' + weeks + 'w') : (weeks + 'w');
+                if(cycleTime > 0) cycleTimeStr = cycleTimeStr ? (cycleTimeStr + ' ' + cycleTime + 'd') : (cycleTime + 'd');
+                entityData.cycleTime = cycleTimeStr;
+
+                returnObj.push(entityData);
                 console.log('pushed engg story:' + entities[i].key.id + ', for PMStory:' + pmstoryid);
                 count --;
                 if(count == 0) {
                     console.log('completed pushing engg stories for PMStory:' + pmstoryid);
-                    cb(null, returnObj);
+                    cb(null, returnObj, acceptedStoriesThisIteration, totalStoriesThisIteration, acceptedStoriesLastIteration, totalStoriesLastIteration);
                 }
             }
         }
     });
 }
 
-function fetchComboStories (cb) {
+function fetchComboStories (iterationName, cb) {
     // const EventKey = ds.key(['Event', event]);
     const q = ds.createQuery(['PMStory'])
         .filter('status', '=', 'In Execution');
@@ -264,31 +318,33 @@ function fetchComboStories (cb) {
             cb(null, null);
             return;
         }
-        if(entities) {
+        _getIterationDates(iterationName, (err, iterationStartDate, iterationStartDateMsec, iterationEndDate, iterationEndDateMsec) => {
             var count = entities.length;
             logger.debug('count total:' + count);
             var comboObj = [];
             // console.log('length of entities map:' + entities.map().length);
-            entities.forEach(function(x) {
+            entities.forEach(function(x, iterationEndDateMsec) {
                 console.log(x.key.id);
-                asyncFetchEnggStories( x.key.id, (err, enggStories) => {
+                asyncFetchEnggStories(iterationEndDateMsec, x.key.id, (err, enggStories, acceptedStoriesThisIteration, totalStoriesThisIteration, acceptedStoriesLastIteration, totalStoriesLastIteration) => {
                     if (err) {
                         logger.error('could not get enggStories for PMStory:' + x.key.id);
                         logger.error(err);
                         count --;
                         if (count == 0) {
-                            logger.info('completed comboObjs for all PMStories. calling the call back');
-                            cb(null, comboObj);
+                            logger.error('calling the call back with null ComboObj');
+                            cb(null, null);
                         }
                     }
                     if (enggStories) {
                         logger.debug('call back after obtaining all enggstories for PMStory:' + x.key.id);
                         count --;
-                        var acceptedStories
-                        for (var i =0; i < enggStories.length; i++) {
+                        var pmStoryData = x.data;
+                        logger.debug('pmStoryData:' + JSON.stringify(pmStoryData));
+                        pmStoryData.percentCompleteThisIteration = acceptedStoriesThisIteration*100/totalStoriesThisIteration;
 
-                        }
-                        comboObj.push({pmstory: fromDatastore(x), enggstories: enggStories});
+                        pmStoryData.percentCompleteLastIteration = acceptedStoriesLastIteration*100/totalStoriesLastIteration;
+
+                        comboObj.push({pmstory: pmStoryData, enggstories: enggStories});
                         logger.info('pushed the combo object for PMStory:' + x.key.id + ', count:' + count);
                         if (count == 0) {
                             logger.info('completed comboObjs for all PMStories. calling the call back');
@@ -296,16 +352,16 @@ function fetchComboStories (cb) {
                         }
                     }
                     if (!err && !enggStories) {
-                        logger.error('not sure what happended. call back after obtaining all enggstories for PMStory:' + x.key.id);
+                        logger.error('not sure what happended. No error but no engg stories. call back after obtaining all enggstories for PMStory:' + x.key.id);
                         count --;
                         if (count == 0) {
-                            logger.info('completed comboObjs for all PMStories. calling the call back');
-                            cb(null, comboObj);
+                            logger.error('calling the call back with null ComboObj');
+                            cb(null, null);
                         }
                     }
                 });
             });
-        }
+        });
     });
 }
 
@@ -591,7 +647,7 @@ function _upsertIteration (iterationName, data, cb) {
 
 }
 
-function _getIterationStartDate (iterationName, cb) {
+function _getIterationDates (iterationName, cb) {
     let key;
     if (iterationName) {
         key = ds.key(['Iteration', iterationName]);
@@ -610,7 +666,7 @@ function _getIterationStartDate (iterationName, cb) {
             cb(null, 'Sprint Not Found');
             return;
         }
-        cb(null, entity.data.startDate);
+        cb(null, entity.data.startDate, entity.data.startDateMsec, entity.data.endDate, entity.data.endDateMsec);
         return;
     });
 }
@@ -828,7 +884,7 @@ module.exports = {
     createIteration: _createIteration,
     readViaName: _readViaName,
     upsertIteration: _upsertIteration,
-    getIterationStartDate: _getIterationStartDate,
+    getIterationDates: _getIterationDates,
     ds
 };
 // [END exports]
