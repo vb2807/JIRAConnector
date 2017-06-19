@@ -170,7 +170,50 @@ process.argv.forEach(function (val, index, array) {
         });
         return;
     }
+    if (val == 'copyWeeklyData') {
+        _copyWeeklyData();
+        return;
+    }
 });
+
+function _copyWeeklyData() {
+    var rule = new schedule.RecurrenceRule();
+    // rule.hour = 1;
+    rule.second = 5;
+
+    addWatcherScheduler = schedule.scheduleJob(rule, function () {
+        logger.info('calling scheduled copyData()');
+        copyData();
+    });
+    console.log('returning from the copyWeeklyData()');
+    return;
+}
+
+function copyData() {
+    var now = new Date();
+    var copyDateStr = now.getFullYear() + "-" + (now.getMonth() + 1) + "-" + now.getDate();
+    var deleteDateObj = new Date(now.getTime() - getModel().twoWksInMsec);
+    var deleteDateStr = deleteDateObj.getFullYear() + "-" + (deleteDateObj.getMonth() + 1) + "-" + deleteDateObj.getDate();
+    getModel().copyAndDeleteEntities('EnggStory', 'EnggHistory', copyDateStr, deleteDateStr, 0, (err) => {
+        if (err) {
+            logger.error('Error in copying and deleting the EnggStory entities. Returning.');
+            return;
+        }
+        logger.info ('Copied and deleted EnggStory entities for: copyDateStr:' + copyDateStr + ', deleteDateStr:' + deleteDateStr)
+        return;
+    });
+
+    getModel().copyAndDeleteEntities('PMStory', 'PMHistory', copyDateStr, deleteDateStr, 0, (err) => {
+        if (err) {
+            logger.error('Error in copying and deleting the PMStory entities. Returning.');
+            logger.error(err);
+            return;
+        }
+        logger.info ('Copied and deleted PMStory entities for: copyDateStr:' + copyDateStr + ', deleteDateStr:' + deleteDateStr)
+        return;
+    });
+    return;
+}
 
 function createEventEntities() {
     var events = ['SOS', 'Iteration', 'EndOfWeek', 'getLatest'];
@@ -217,7 +260,7 @@ function createEventEntities() {
 var processSearchResults = function processSearchResults(JIRAProjects, cursor, updateTime, deltaSince) {
     var JQLString = "project in (" + JIRAProjects + ") and  issuetype in (Story, Epic)"
     // var JQLString = "key in (CONNAMDANG-583)";
-    // var JQLString = "key in (CONHOWRAH-459)";
+    // var JQLString = "key in (CONHOWRAH-482)";
     if (deltaSince) {
         var deltaSinceDateObj = new Date(deltaSince);
         JQLString = JQLString + "  and updatedDate >= '" + deltaSinceDateObj.getFullYear() + "-" + (deltaSinceDateObj.getMonth() + 1) + "-" + deltaSinceDateObj.getDate() + " " + deltaSinceDateObj.getHours() + ":" + deltaSinceDateObj.getMinutes() + "'";
@@ -379,71 +422,116 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
     // let's get its changelog
     var arrayHistories = specificIssue.changelog.histories;
     var acceptedDate = null;
-    var createDate = specificIssue.fields.created.substring(0,10);
+    // var createDate = specificIssue.fields.created.substring(0,10);
+    var createDate = specificIssue.fields.created;
+    var createDateMsec = new Date(createDate).getTime();
+
+    var statusHistory = [];
+    var sprintHistory = [];
+    var storyPointsHistory = [];
+    var fixVersionHistory = [];
+
+    /*
     var statusHistory = (curentEnggEntity == null ? [] : curentEnggEntity.statusHistory);
     var sprintHistory = (curentEnggEntity == null ? [] : curentEnggEntity.sprintHistory);
     var storyPointsHistory = (curentEnggEntity == null ? [] : curentEnggEntity.storyPointsHistory);
     var fixVersionHistory = (curentEnggEntity == null ? [] : curentEnggEntity.fixVersionHistory);
-
     for (var indexHistories = 0; indexHistories <  arrayHistories.length; indexHistories++) {
         var specificHistory = arrayHistories[indexHistories];
-        var dateHistory = new Date(specificHistory.created);
-        /*
+        var dateHistoryStr = specificHistory.created;
+        var dateHistoryObj = new Date(dateHistoryStr);
+        var dateHistoryMsec = dateHistoryObj.getTime();
+
         // if this is delta agg and if this history is old then ignore
-        if (deltaSince) {
-            var deltaSinceDateObj = new Date(deltaSince);
-            if (dateHistory.getTime() < deltaSinceDateObj.getTime()) continue;
-        }
-        */
-        dateHistory = dateHistory.getFullYear() + '-' + (dateHistory.getMonth() + 1) + '-' + dateHistory.getDate()
+        // if (deltaSince) {
+        //    var deltaSinceDateObj = new Date(deltaSince);
+        //    if (dateHistoryMsec < deltaSinceDateObj.getTime()) continue;
+        // }
+
+        // dateHistory = dateHistory.getFullYear() + '-' + (dateHistory.getMonth() + 1) + '-' + dateHistory.getDate();
         for (var indexSpecificHistoryItems = 0; indexSpecificHistoryItems < specificHistory.items.length; indexSpecificHistoryItems++) {
             var historyItem = specificHistory.items[indexSpecificHistoryItems];
             if(historyItem.field == 'status') {
                 if (statusHistory.length == 0 && historyItem.fromString != null) {
-                    statusHistory.push(JSON.stringify([createDate, null, historyItem.fromString]));
+                    statusHistory.push(JSON.stringify([createDate, createDateMsec, null, historyItem.fromString]));
                 }
-                statusHistory.push(JSON.stringify([dateHistory, historyItem.fromString, historyItem.toString]));
+                statusHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, historyItem.fromString, historyItem.toString]));
                 if (historyItem.toString == 'Accepted' && !acceptedDate) {
-                    acceptedDate = dateHistory;
+                    // acceptedDate = dateHistory;
+                    acceptedDate = dateHistoryObj.getFullYear() + '-' + (dateHistoryObj.getMonth() + 1) + '-' + dateHistoryObj.getDate();
                 }
             }
             if(historyItem.field == 'Sprint') {
                 if (sprintHistory.length == 0 && historyItem.fromString != null) {
-                    sprintHistory.push(JSON.stringify([createDate, null, historyItem.fromString]));
+                    sprintHistory.push(JSON.stringify([createDate, createDateMsec, null, historyItem.fromString]));
                 }
-                sprintHistory.push(JSON.stringify([dateHistory, historyItem.fromString, historyItem.toString]));
+                sprintHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, historyItem.fromString, historyItem.toString]));
             }
             if(historyItem.field == 'Story Points') {
                 if (storyPointsHistory.length == 0 && historyItem.fromString != null) {
-                    storyPointsHistory.push(JSON.stringify([createDate, null, historyItem.fromString]));
+                    storyPointsHistory.push(JSON.stringify([createDate, createDateMsec, null, historyItem.fromString]));
                 }
-                storyPointsHistory.push(JSON.stringify([dateHistory, parseInt(historyItem.fromString, 10), parseInt(historyItem.toString, 10)]));
+                storyPointsHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, parseInt(historyItem.fromString, 10), parseInt(historyItem.toString, 10)]));
             }
             if(historyItem.field == 'Fix Version') {
                 if (fixVersionHistory.length == 0 && historyItem.fromString != null) {
-                    fixVersionHistory.push(JSON.stringify([createDate, null, historyItem.fromString]));
+                    fixVersionHistory.push(JSON.stringify([createDate, createDateMsec, null, historyItem.fromString]));
                 }
-                fixVersionHistory.push(JSON.stringify([dateHistory, historyItem.fromString, historyItem.toString]));
+                fixVersionHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, historyItem.fromString, historyItem.toString]));
             }
         }
     }
 
-    // We now have latest record for everything except if there was no history present for something. Let's fix that.
-    if (statusHistory.length == 0) statusHistory.push(JSON.stringify([createDate, null, specificIssue.fields.status.name]));
+     // We now have latest record for everything except if there was no history present for something. Let's fix that.
+     if (statusHistory.length == 0) statusHistory.push(JSON.stringify([createDate, createDateMsec, null, specificIssue.fields.status.name]));
 
-    if (storyPointsHistory.length == 0 && specificIssue.fields.customfield_10109 != null) storyPointsHistory.push(JSON.stringify([createDate, null, parseInt(specificIssue.fields.customfield_10109, 10)]));
+     if (storyPointsHistory.length == 0 && specificIssue.fields.customfield_10109 != null) storyPointsHistory.push(JSON.stringify([createDate, createDateMsec, null, parseInt(specificIssue.fields.customfield_10109, 10)]));
+
+     var currentFixVersions = null;
+     if (specificIssue.fields.fixVersions != null) {
+
+     logger.debug('specificIssue.fields.fixVersions:' + specificIssue.fields.fixVersions);
+     currentFixVersions = [];
+     for (var idxFixVersions=0; idxFixVersions < specificIssue.fields.fixVersions.length; idxFixVersions++) {
+     currentFixVersions.push(specificIssue.fields.fixVersions[idxFixVersions].name);
+     }
+
+     if (fixVersionHistory.length == 0) fixVersionHistory.push(JSON.stringify([createDate, createDateMsec, null, currentFixVersions]));
+     }
+
+     var currentSprintsStrArray = null;
+
+     if (specificIssue.fields.customfield_10016 != null) {
+     var currentSprintsObjArray = specificIssue.fields.customfield_10016;
+     currentSprintsStrArray = [];
+
+     for (var idxCurrentSprintsArray=0; idxCurrentSprintsArray < currentSprintsObjArray.length; idxCurrentSprintsArray++) {
+     let keyName = ',name='; // this is the string to look for in currentSprintStr
+     let indexOfName = currentSprintsObjArray[idxCurrentSprintsArray].indexOf(keyName);
+     let indexOfNextComma = currentSprintsObjArray[idxCurrentSprintsArray].indexOf(',', indexOfName + 1);
+     currentSprintsStrArray.push(currentSprintsObjArray[idxCurrentSprintsArray].substring(indexOfName + keyName.length, indexOfNextComma));
+     }
+     if (sprintHistory.length == 0) sprintHistory.push(JSON.stringify([createDate, createDateMsec, null, currentSprintsStrArray]));
+     }
+
+    */
+
+    // let's first set the current information with create date assuming we don't find any history for anything
+    statusHistory.push(JSON.stringify([createDate, createDateMsec, specificIssue.fields.status.name]));
+
+    if (specificIssue.fields.customfield_10109 != null) storyPointsHistory.push(JSON.stringify([createDate, createDateMsec, parseInt(specificIssue.fields.customfield_10109, 10)]));
+    else storyPointsHistory.push(JSON.stringify([createDate, createDateMsec, null]));
 
     var currentFixVersions = null;
     if (specificIssue.fields.fixVersions != null) {
 
-        logger.debug('specificIssue.fields.fixVersions:' + specificIssue.fields.fixVersions);
+        logger.debug('specificIssue.fields.fixVersions:' + JSON.stringify(specificIssue.fields.fixVersions));
         currentFixVersions = [];
         for (var idxFixVersions=0; idxFixVersions < specificIssue.fields.fixVersions.length; idxFixVersions++) {
             currentFixVersions.push(specificIssue.fields.fixVersions[idxFixVersions].name);
         }
-
-        if (fixVersionHistory.length == 0) fixVersionHistory.push(JSON.stringify([createDate, null, currentFixVersions]));
     }
+    fixVersionHistory.push(JSON.stringify([createDate, createDateMsec, currentFixVersions]));
 
     var currentSprintsStrArray = null;
 
@@ -457,14 +545,79 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
             let indexOfNextComma = currentSprintsObjArray[idxCurrentSprintsArray].indexOf(',', indexOfName + 1);
             currentSprintsStrArray.push(currentSprintsObjArray[idxCurrentSprintsArray].substring(indexOfName + keyName.length, indexOfNextComma));
         }
-        if (sprintHistory.length == 0) sprintHistory.push(JSON.stringify([createDate, null, currentSprintsStrArray]));
     }
+    sprintHistory.push(JSON.stringify([createDate, createDateMsec, currentSprintsStrArray]));
+
+    // now let's iterate thru history, and shift data if we find something
+    var indexHistories = arrayHistories.length;
+//    for (var indexHistories = arrayHistories.length - 1; indexHistories >=  0; indexHistories--) {
+    while (indexHistories >  0) {
+        indexHistories--;
+        var specificHistory = arrayHistories[indexHistories];
+        var dateHistoryStr = specificHistory.created;
+        var dateHistoryObj = new Date(dateHistoryStr);
+        var dateHistoryMsec = dateHistoryObj.getTime();
+
+        // if this is delta agg and if this history is old then ignore
+        // if (deltaSince) {
+        //    var deltaSinceDateObj = new Date(deltaSince);
+        //    if (dateHistoryMsec < deltaSinceDateObj.getTime()) continue;
+        // }
+
+
+        // dateHistory = dateHistory.getFullYear() + '-' + (dateHistory.getMonth() + 1) + '-' + dateHistory.getDate();
+        for (var indexSpecificHistoryItems = specificHistory.items.length - 1; indexSpecificHistoryItems >= 0; indexSpecificHistoryItems--) {
+            var historyItem = specificHistory.items[indexSpecificHistoryItems];
+            if(historyItem.field == 'status') {
+                let lastItemStatusHistory = JSON.parse(statusHistory.pop());
+                statusHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, lastItemStatusHistory[2]]));
+                statusHistory.push(JSON.stringify([lastItemStatusHistory[0], lastItemStatusHistory[1], historyItem.fromString]));
+
+                if (historyItem.toString == 'Accepted' && !acceptedDate) {
+                    // acceptedDate = dateHistory;
+                    acceptedDate = dateHistoryObj.getFullYear() + '-' + (dateHistoryObj.getMonth() + 1) + '-' + dateHistoryObj.getDate();
+                }
+            }
+            if(historyItem.field == 'Sprint') {
+                let lastItemSprintHistory = JSON.parse(sprintHistory.pop());
+                sprintHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, lastItemSprintHistory[2]]));
+                sprintHistory.push(JSON.stringify([lastItemSprintHistory[0], lastItemSprintHistory[1], historyItem.fromString]));
+            }
+            if(historyItem.field == 'Story Points') {
+                let lastItemStoryPointsHistory = JSON.parse(storyPointsHistory.pop());
+                storyPointsHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, lastItemStoryPointsHistory[2]]));
+                storyPointsHistory.push(JSON.stringify([lastItemStoryPointsHistory[0], lastItemStoryPointsHistory[1], historyItem.fromString]));
+            }
+            if(historyItem.field == 'Fix Version') {
+                let lastItemFixVersionsHistory = JSON.parse(fixVersionHistory.pop());
+                var newFixVersion = lastItemFixVersionsHistory[2];
+                logger.debug('newFixVersion:' + newFixVersion);
+
+                // let fixVersionsFromPop = null
+                if(fixVersionHistory.length > 0 && JSON.parse(fixVersionHistory[fixVersionHistory.length - 1])[1] == dateHistoryMsec) {
+                    // fixVersionsFromPop = JSON.parse(fixVersionHistory[fixVersionHistory.length - 1])[2];
+                    // fixVersionHistory.pop();
+                }
+                else fixVersionHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, newFixVersion]));
+
+                if (historyItem.fromString == null) {
+                    logger.debug('newFixVersion:' + JSON.stringify(newFixVersion));
+                    if (newFixVersion.indexOf(historyItem.toString) != -1) newFixVersion.splice(newFixVersion.indexOf(historyItem.toString), 1);
+                }
+                if (historyItem.toString == null) {
+                    newFixVersion.push(historyItem.fromString);
+                }
+                fixVersionHistory.push(JSON.stringify([lastItemFixVersionsHistory[0], lastItemFixVersionsHistory[1], newFixVersion]));
+            }
+        }
+    }
+
 
     logger.debug('sprintHistory:' + sprintHistory);
     var firstSprint = null;
     if(sprintHistory.length != 0) {
         logger.debug('sprintHistory.length:' + sprintHistory.length);
-        var firstSprintStringified = sprintHistory[0];
+        var firstSprintStringified = sprintHistory[sprintHistory.length -1];
         logger.debug('firstSprintStringified:' + firstSprintStringified);
         var firstSprintArray = JSON.parse(firstSprintStringified);
         // firstSprint = (firstSprintArray[1] != null ?  firstSprintArray[1] : firstSprintArray[2]);
@@ -649,5 +802,7 @@ function _deltaAgg(optionSelected) {
 }
 
 module.exports = {
-    deltaAgg: _deltaAgg
+    deltaAgg: _deltaAgg,
+    copyWeeklyData: _copyWeeklyData,
+    copyData
 }

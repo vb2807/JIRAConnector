@@ -22,6 +22,9 @@ const JIRAConnector = require('./JIRAConnector.js');
 
 const Datastore = require('@google-cloud/datastore');
 const config = require('./config');
+const twoWksInMsec = 14*24*60*60*1000;
+const oneDayInMsec = 24*60*60*1000;
+const waitTimeForRetry = 5*1000; //5 seconds
 
 // [START config]
 const ds = Datastore({
@@ -249,10 +252,10 @@ function asyncFetchEnggStories (iterationEndDateMsec, pmstoryid, cb) {
                 var firstSprintStartDateMsec = new Date(entityData.firstSprintStartDate).getTime();
 
                 if (entityData.status == 'Accepted' && (acceptedDateMsec <= iterationEndDateMsec)) acceptedStoriesThisIteration++;
-                if (entityData.status == 'Accepted' && (acceptedDateMsec <= (iterationEndDateMsec - 14*24*60*60*1000))) acceptedStoriesLastIteration++;
+                if (entityData.status == 'Accepted' && (acceptedDateMsec <= (iterationEndDateMsec - twoWksInMsec))) acceptedStoriesLastIteration++;
                 totalStoriesThisIteration++
-                if (dateCreatedMsec <= (iterationEndDateMsec - 14*24*60*60*1000)) totalStoriesLastIteration++;
-                var queueTime = parseInt((entityData.firstSprintStartDate ? (new Date().getTime() - dateCreatedMsec) /(1000*60*60*24) : (firstSprintStartDateMsec - dateCreatedMsec) /(1000*60*60*24)), 10);
+                if (dateCreatedMsec <= (iterationEndDateMsec - twoWksInMsec)) totalStoriesLastIteration++;
+                var queueTime = parseInt((entityData.firstSprintStartDate ? (new Date().getTime() - dateCreatedMsec) /(oneDayInMsec) : (firstSprintStartDateMsec - dateCreatedMsec) /(oneDayInMsec)), 10);
                 var months = 0;
                 while (queueTime >= 30) {
                     months++;
@@ -272,10 +275,10 @@ function asyncFetchEnggStories (iterationEndDateMsec, pmstoryid, cb) {
                 var cycleTime;
                 var cycleTimeStr = null;
                 if (entityData.firstSprintStartDate) {
-                    cycleTime = parseInt((entityData.status == 'Accepted'? ((acceptedDateMsec - firstSprintStartDateMsec) / (1000*60*60*24)) : ((new Date().getTime() - firstSprintStartDateMsec) / (1000*60*60*24))), 10);
+                    cycleTime = parseInt((entityData.status == 'Accepted'? ((acceptedDateMsec - firstSprintStartDateMsec) / (oneDayInMsec)) : ((new Date().getTime() - firstSprintStartDateMsec) / (oneDayInMsec))), 10);
                 }
                 else {
-                    if (entityData.status == 'Accepted') cycleTime = parseInt(((acceptedDateMsec - dateCreatedMsec) / (1000*60*60*24)), 10);
+                    if (entityData.status == 'Accepted') cycleTime = parseInt(((acceptedDateMsec - dateCreatedMsec) / (oneDayInMsec)), 10);
                 }
                 months = 0;
                 while (cycleTime >= 30) {
@@ -858,6 +861,75 @@ function _getLastUpdateTime (JIRAProjects, cb) {
     });
 }
 
+function _saveAndDeleteOneEntity(toSaveEntity, toDeleteKey, cb) {
+    ds.save(toSaveEntity, (err) => {
+        if(err) {
+            logger.error('Error in saving:' + JSON.stringify(toSaveEntity));
+            cb (err);
+            return;
+        }
+        logger.debug('History entity saved:' + JSON.stringify(toSaveEntity));
+        ds.delete(toDeleteKey, (err) => {
+            if (err) {
+                logger.error('Error while deleting:ds.key[kind, storyEntityKey.id, historyKind, deleteDate]' + JSON.stringify(toDeleteKey));
+                cb (err);
+                return;
+            }
+            logger.debug('Entity deleted:' + JSON.stringify(toDeleteKey));
+        });
+    });
+    cb (null);
+    return;
+}
+
+function _copyAndDeleteEntities(kind, historyKind, copyDate, deleteDate, token, cb) {
+    // read the current data in chunks
+    var limit = 50;
+
+    const q = ds.createQuery([kind])
+        .limit(limit)
+        .start(token);
+
+    ds.runQuery(q, (err, entities, nextQuery) => {
+        if (err) {
+            cb(err);
+            return;
+        }
+        for (var i = 0; i < entities.length; i++) {
+            var historyEntityKey = ds.key([kind, entities[i].key.id, historyKind, copyDate]);
+            var historyEntityData = entities[i].data;
+            var historyEntity = {
+                key: historyEntityKey,
+                data: historyEntityData
+            };
+            var toDeleteKey = ds.key([kind, entities[i].key.id, historyKind, deleteDate]);
+            _saveAndDeleteOneEntity(historyEntity, toDeleteKey, (err) => {
+                if (err) {
+                    setTimeout(_saveAndDeleteOneEntity, waitTimeForRetry, historyEntity, toDeleteKey, (err) => {
+                        if (err) {
+                            setTimeout(_saveAndDeleteOneEntity, waitTimeForRetry, historyEntity, toDeleteKey, (err) => {
+                                if (err) {
+                                    logger.error('saveAndDeleteFailed. Three attemps done. historyEntity:' + JSON.stringify(historyEntity) + ', toDeleteKey:' + JSON.stringify(toDeleteKey));
+                                    cb(err);
+                                    return
+                                }
+                                else {
+                                    cb(null);
+                                    return;
+                                }
+                            });
+                        }
+                    });
+                }
+                logger.debug('save and delete done for historyEntity:' + JSON.stringify(historyEntity) + ', toDeleteKey:' + JSON.stringify(toDeleteKey));
+            });
+        }
+        const hasMore = nextQuery.moreResults !== Datastore.NO_MORE_RESULTS ? nextQuery.endCursor : false;
+        if (hasMore) _copyAndDeleteEntities(kind, historyKind, copyDate, deleteDate, hasMore, cb);
+        return;
+    });
+}
+
 // [START exports]
 module.exports = {
     create,
@@ -885,7 +957,9 @@ module.exports = {
     readViaName: _readViaName,
     upsertIteration: _upsertIteration,
     getIterationDates: _getIterationDates,
-    ds
+    copyAndDeleteEntities: _copyAndDeleteEntities,
+    ds,
+    twoWksInMsec
 };
 // [END exports]
 
