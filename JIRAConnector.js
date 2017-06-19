@@ -547,6 +547,7 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
         }
     }
     sprintHistory.push(JSON.stringify([createDate, createDateMsec, currentSprintsStrArray]));
+    var firstSprint = currentSprintsStrArray;
 
     // now let's iterate thru history, and shift data if we find something
     var indexHistories = arrayHistories.length;
@@ -582,6 +583,7 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
                 let lastItemSprintHistory = JSON.parse(sprintHistory.pop());
                 sprintHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, lastItemSprintHistory[2]]));
                 sprintHistory.push(JSON.stringify([lastItemSprintHistory[0], lastItemSprintHistory[1], historyItem.fromString]));
+                firstSprint = (historyItem.fromString != null ? historyItem.fromString : historyItem.toString);
             }
             if(historyItem.field == 'Story Points') {
                 let lastItemStoryPointsHistory = JSON.parse(storyPointsHistory.pop());
@@ -612,17 +614,6 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
         }
     }
 
-
-    logger.debug('sprintHistory:' + sprintHistory);
-    var firstSprint = null;
-    if(sprintHistory.length != 0) {
-        logger.debug('sprintHistory.length:' + sprintHistory.length);
-        var firstSprintStringified = sprintHistory[sprintHistory.length -1];
-        logger.debug('firstSprintStringified:' + firstSprintStringified);
-        var firstSprintArray = JSON.parse(firstSprintStringified);
-        // firstSprint = (firstSprintArray[1] != null ?  firstSprintArray[1] : firstSprintArray[2]);
-        firstSprint = firstSprintArray[2];
-    }
     logger.debug('firstSprint:' + firstSprint);
     if (firstSprint) {
         getModel().getIterationDates(firstSprint, (err, firstSprintStartDate, firstSprintStartDateMsec, firstSprintEndDate, firstSprintEndDateMsec) => {
