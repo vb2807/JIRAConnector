@@ -40,7 +40,7 @@ router.use((req, res, next) => {
  */
 router.get('/groominghealth/:event', (req, res, next) => {
   console.log(req.params.event);
-  getModel().fetchComboStories('Iteration 11 - 2017', (err, comboObjs) => {
+  getModel().fetchComboObj('Iteration 11 - 2017', (err, comboObjs) => {
     if (err) {
       console.log(err);
       next(err);

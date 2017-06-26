@@ -164,9 +164,9 @@ process.argv.forEach(function (val, index, array) {
         return;
     }
     if (val == 'getComboObj') {
-        getModel().fetchComboStories('Iteration 11 - 2017', (err, comboObjs) => {
-            logger.error(err);
-            logger.debug('comboObjs:' + JSON.stringify(comboObjs));
+        getModel().fetchComboObj('Iteration 11 - 2017', (err, comboObjs) => {
+            if (err) logger.error(err);
+            logger.debug('fetchComboObj:comboObjs:' + JSON.stringify(comboObjs));
         });
         return;
     }
@@ -258,9 +258,9 @@ function createEventEntities() {
 }
 
 var processSearchResults = function processSearchResults(JIRAProjects, cursor, updateTime, deltaSince) {
-    var JQLString = "project in (" + JIRAProjects + ") and  issuetype in (Story, Epic)"
+    var JQLString = "project in (" + JIRAProjects + ") and  issuetype in (Story, Epic, MRG)"
     // var JQLString = "key in (CONNAMDANG-583)";
-    // var JQLString = "key in (CONHOWRAH-482)";
+    // var JQLString = "key in (CONHOWRAH-139)";
     if (deltaSince) {
         var deltaSinceDateObj = new Date(deltaSince);
         JQLString = JQLString + "  and updatedDate >= '" + deltaSinceDateObj.getFullYear() + "-" + (deltaSinceDateObj.getMonth() + 1) + "-" + deltaSinceDateObj.getDate() + " " + deltaSinceDateObj.getHours() + ":" + deltaSinceDateObj.getMinutes() + "'";
@@ -276,6 +276,7 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
             "issuelinks",
             "issuetype",
             "created",
+            "updated",
             "timespent",
             "customfield_10016",
             "customfield_10109",
@@ -431,91 +432,6 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
     var storyPointsHistory = [];
     var fixVersionHistory = [];
 
-    /*
-    var statusHistory = (curentEnggEntity == null ? [] : curentEnggEntity.statusHistory);
-    var sprintHistory = (curentEnggEntity == null ? [] : curentEnggEntity.sprintHistory);
-    var storyPointsHistory = (curentEnggEntity == null ? [] : curentEnggEntity.storyPointsHistory);
-    var fixVersionHistory = (curentEnggEntity == null ? [] : curentEnggEntity.fixVersionHistory);
-    for (var indexHistories = 0; indexHistories <  arrayHistories.length; indexHistories++) {
-        var specificHistory = arrayHistories[indexHistories];
-        var dateHistoryStr = specificHistory.created;
-        var dateHistoryObj = new Date(dateHistoryStr);
-        var dateHistoryMsec = dateHistoryObj.getTime();
-
-        // if this is delta agg and if this history is old then ignore
-        // if (deltaSince) {
-        //    var deltaSinceDateObj = new Date(deltaSince);
-        //    if (dateHistoryMsec < deltaSinceDateObj.getTime()) continue;
-        // }
-
-        // dateHistory = dateHistory.getFullYear() + '-' + (dateHistory.getMonth() + 1) + '-' + dateHistory.getDate();
-        for (var indexSpecificHistoryItems = 0; indexSpecificHistoryItems < specificHistory.items.length; indexSpecificHistoryItems++) {
-            var historyItem = specificHistory.items[indexSpecificHistoryItems];
-            if(historyItem.field == 'status') {
-                if (statusHistory.length == 0 && historyItem.fromString != null) {
-                    statusHistory.push(JSON.stringify([createDate, createDateMsec, null, historyItem.fromString]));
-                }
-                statusHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, historyItem.fromString, historyItem.toString]));
-                if (historyItem.toString == 'Accepted' && !acceptedDate) {
-                    // acceptedDate = dateHistory;
-                    acceptedDate = dateHistoryObj.getFullYear() + '-' + (dateHistoryObj.getMonth() + 1) + '-' + dateHistoryObj.getDate();
-                }
-            }
-            if(historyItem.field == 'Sprint') {
-                if (sprintHistory.length == 0 && historyItem.fromString != null) {
-                    sprintHistory.push(JSON.stringify([createDate, createDateMsec, null, historyItem.fromString]));
-                }
-                sprintHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, historyItem.fromString, historyItem.toString]));
-            }
-            if(historyItem.field == 'Story Points') {
-                if (storyPointsHistory.length == 0 && historyItem.fromString != null) {
-                    storyPointsHistory.push(JSON.stringify([createDate, createDateMsec, null, historyItem.fromString]));
-                }
-                storyPointsHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, parseInt(historyItem.fromString, 10), parseInt(historyItem.toString, 10)]));
-            }
-            if(historyItem.field == 'Fix Version') {
-                if (fixVersionHistory.length == 0 && historyItem.fromString != null) {
-                    fixVersionHistory.push(JSON.stringify([createDate, createDateMsec, null, historyItem.fromString]));
-                }
-                fixVersionHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, historyItem.fromString, historyItem.toString]));
-            }
-        }
-    }
-
-     // We now have latest record for everything except if there was no history present for something. Let's fix that.
-     if (statusHistory.length == 0) statusHistory.push(JSON.stringify([createDate, createDateMsec, null, specificIssue.fields.status.name]));
-
-     if (storyPointsHistory.length == 0 && specificIssue.fields.customfield_10109 != null) storyPointsHistory.push(JSON.stringify([createDate, createDateMsec, null, parseInt(specificIssue.fields.customfield_10109, 10)]));
-
-     var currentFixVersions = null;
-     if (specificIssue.fields.fixVersions != null) {
-
-     logger.debug('specificIssue.fields.fixVersions:' + specificIssue.fields.fixVersions);
-     currentFixVersions = [];
-     for (var idxFixVersions=0; idxFixVersions < specificIssue.fields.fixVersions.length; idxFixVersions++) {
-     currentFixVersions.push(specificIssue.fields.fixVersions[idxFixVersions].name);
-     }
-
-     if (fixVersionHistory.length == 0) fixVersionHistory.push(JSON.stringify([createDate, createDateMsec, null, currentFixVersions]));
-     }
-
-     var currentSprintsStrArray = null;
-
-     if (specificIssue.fields.customfield_10016 != null) {
-     var currentSprintsObjArray = specificIssue.fields.customfield_10016;
-     currentSprintsStrArray = [];
-
-     for (var idxCurrentSprintsArray=0; idxCurrentSprintsArray < currentSprintsObjArray.length; idxCurrentSprintsArray++) {
-     let keyName = ',name='; // this is the string to look for in currentSprintStr
-     let indexOfName = currentSprintsObjArray[idxCurrentSprintsArray].indexOf(keyName);
-     let indexOfNextComma = currentSprintsObjArray[idxCurrentSprintsArray].indexOf(',', indexOfName + 1);
-     currentSprintsStrArray.push(currentSprintsObjArray[idxCurrentSprintsArray].substring(indexOfName + keyName.length, indexOfNextComma));
-     }
-     if (sprintHistory.length == 0) sprintHistory.push(JSON.stringify([createDate, createDateMsec, null, currentSprintsStrArray]));
-     }
-
-    */
-
     // let's first set the current information with create date assuming we don't find any history for anything
     statusHistory.push(JSON.stringify([createDate, createDateMsec, specificIssue.fields.status.name]));
 
@@ -534,16 +450,20 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
     fixVersionHistory.push(JSON.stringify([createDate, createDateMsec, currentFixVersions]));
 
     var currentSprintsStrArray = null;
+    var sprintsTravelled = null;
 
     if (specificIssue.fields.customfield_10016 != null) {
         var currentSprintsObjArray = specificIssue.fields.customfield_10016;
         currentSprintsStrArray = [];
+        sprintsTravelled = [];
 
         for (var idxCurrentSprintsArray=0; idxCurrentSprintsArray < currentSprintsObjArray.length; idxCurrentSprintsArray++) {
             let keyName = ',name='; // this is the string to look for in currentSprintStr
             let indexOfName = currentSprintsObjArray[idxCurrentSprintsArray].indexOf(keyName);
             let indexOfNextComma = currentSprintsObjArray[idxCurrentSprintsArray].indexOf(',', indexOfName + 1);
-            currentSprintsStrArray.push(currentSprintsObjArray[idxCurrentSprintsArray].substring(indexOfName + keyName.length, indexOfNextComma));
+            let sprintName = currentSprintsObjArray[idxCurrentSprintsArray].substring(indexOfName + keyName.length, indexOfNextComma);
+            currentSprintsStrArray.push(sprintName);
+            sprintsTravelled.push(sprintName);
         }
     }
     sprintHistory.push(JSON.stringify([createDate, createDateMsec, currentSprintsStrArray]));
@@ -584,6 +504,15 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
                 sprintHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, lastItemSprintHistory[2]]));
                 sprintHistory.push(JSON.stringify([lastItemSprintHistory[0], lastItemSprintHistory[1], historyItem.fromString]));
                 firstSprint = (historyItem.fromString != null ? historyItem.fromString : historyItem.toString);
+                // let's see if the historyItem.fromString has two sprints, if so then break it into two and store in Sprints travelled
+                if(historyItem.fromString != null) {
+                    logger.debug('historyItem.fromString:' + historyItem.fromString);
+                    let arraySprints = historyItem.fromString.split(', ');
+                    for (var idxarraySprints = 0; idxarraySprints < arraySprints.length; idxarraySprints++) {
+                        if (!sprintsTravelled) sprintsTravelled = [];
+                        if (sprintsTravelled.indexOf(arraySprints[idxarraySprints]) == -1) sprintsTravelled.push(arraySprints[idxarraySprints]);
+                    }
+                }
             }
             if(historyItem.field == 'Story Points') {
                 let lastItemStoryPointsHistory = JSON.parse(storyPointsHistory.pop());
@@ -619,32 +548,38 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
         getModel().getIterationDates(firstSprint, (err, firstSprintStartDate, firstSprintStartDateMsec, firstSprintEndDate, firstSprintEndDateMsec) => {
             if (err) {
                 logger.error(err);
-                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null, currentFixVersions, currentSprintsStrArray);
+                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null, currentFixVersions, currentSprintsStrArray, sprintsTravelled);
                 return;
             }
             if (!firstSprintStartDate) {
                 logger.error('firstSprintStartDate:' + firstSprintStartDate);
-                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null, currentFixVersions, currentSprintsStrArray);
+                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null, currentFixVersions, currentSprintsStrArray, sprintsTravelled);
                 return;
             }
             if (firstSprintStartDate) {
                 logger.debug('firstSprintStartDate:' + firstSprintStartDate);
-                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, firstSprintStartDate, currentFixVersions, currentSprintsStrArray);
+                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, firstSprintStartDate, currentFixVersions, currentSprintsStrArray, sprintsTravelled);
                 return;
             }
         });
     }
     else
-        buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null, currentFixVersions, currentSprintsStrArray);
+        buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null, currentFixVersions, currentSprintsStrArray, sprintsTravelled);
     return;
 }
 
-function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, firstSprintStartDate, currentFixVersions, currentSprintsStrArray) {
+function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, firstSprintStartDate, currentFixVersions, currentSprintsStrArray, sprintsTravelled) {
+    var dateCreatedObj = new Date(specificIssue.fields.created);
+    var dateCreatedMsec = dateCreatedObj.getTime();
+    var dateCreatedStr = dateCreatedObj.getFullYear() + '-' + (dateCreatedObj.getMonth() + 1) + '-' + dateCreatedObj.getDate();
     var EnggStoryEntityKey = getModel().ds.key(['EnggStory', parseInt(specificIssue.id, 10)]);
-
     var EnggStoryEntity = {
         key: EnggStoryEntityKey,
         data: [
+            {
+                name: 'entityUpdateTimeMsec',
+                value: updateTime.getTime()
+            },
             {
                 name: 'entityUpdateTime',
                 value: updateTime.toJSON()
@@ -673,9 +608,17 @@ function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, delt
                 value: specificIssue.fields.status.name
             },
             {
+                name: 'sprintsTravelled',
+                value: sprintsTravelled
+            },
+            {
                 name: 'statusHistory',
                 value: statusHistory,
                 excludeFromIndexes: true
+            },
+            {
+                name: 'updatedMsec',
+                value: new Date(specificIssue.fields.updated).getTime()
             },
             {
                 name: 'fixVersion',
@@ -708,7 +651,11 @@ function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, delt
             },
             {
                 name: 'dateCreated',
-                value: specificIssue.fields.created.substring(0,10)
+                value: dateCreatedStr
+            },
+            {
+                name: 'dateCreatedMsec',
+                value: dateCreatedMsec
             },
             {
                 name: 'timeSpent',
