@@ -48,7 +48,7 @@ app.use('/', require('./crud'));
 
 // Redirect root to /groominghealth
 app.get('/', (req, res) => {
-  res.redirect('/groomingHealth');
+  res.redirect('/groominghealth');
 });
 
 /*

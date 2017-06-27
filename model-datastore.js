@@ -255,29 +255,6 @@ function asyncFetchEnggStories (iterationName, iterationStartDateMsec, iteration
                     keys.push(ds.key(['PMStory', EnggEntities[k].data.PMStoryID]));
                 }
             }
-/*
-            // var count = EnggStoriesWithNullPMStory.length > 0 ? keys.length + 1 : keys.length;
-            var flagEnggStoriesWithNullPMStories = false;
-
-            logger.debug('asyncFetchEnggStories:count:' + count);
-
-            if (EnggStoriesWithNullPMStory.length > 0) {
-                buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, null, EnggStoriesWithNullPMStory, (err, specificComboObj) => {
-                    if (err) {
-                        flagEnggStoriesWithNullPMStories = true;
-                        logger.debug('flagEnggStoriesWithNullPMStories:' + flagEnggStoriesWithNullPMStories);
-                        logger.error(err);
-                    }
-                    else {
-                        flagEnggStoriesWithNullPMStories = true;
-                        logger.debug('flagEnggStoriesWithNullPMStories:' + flagEnggStoriesWithNullPMStories);
-                        logger.debug('specificComboObj:' + JSON.stringify(specificComboObj));
-                        comboObj.push(specificComboObj);
-                        logger.debug('comboObj.push:' + JSON.stringify(comboObj));
-                    }
-                });
-            }
-*/
             ds.get(keys, (err, PMEntities) => {
                 if (err) {
                     logger.error(err);
@@ -285,7 +262,6 @@ function asyncFetchEnggStories (iterationName, iterationStartDateMsec, iteration
                     return cb (err);
                 }
                 else {
-                    logger.debug('calling buildComboObj');
                     var count = PMEntities.length;
                     if (count != keys.length) {
                         logger.info('Some PMStory Entities not present in Google Datastore.')
@@ -374,7 +350,6 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
 
     var count = entities.length;
 
-    var comboObj = [];
     var comboObjEnggstories = [];
     var PMStoryEntityData = null;
     if (pmStoryData) {
@@ -382,6 +357,7 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         PMStoryEntityData.id = pmStoryData.id;
         PMStoryEntityData.key = pmStoryData.currentKey;
         PMStoryEntityData.summary = pmStoryData.summary;
+        PMStoryEntityData.status = pmStoryData.status;
         PMStoryEntityData.fixVersion = pmStoryData.fixVersion;
         PMStoryEntityData.totalStoriesThisIteration = 0;
         PMStoryEntityData.totalStoriesLastIteration = 0;
@@ -392,29 +368,26 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
     logger.debug('pmStoryData:' + JSON.stringify(pmStoryData));
 
     for (var i=0; i < entities.length; i++) {
-        let enggDataForComboObj = {};
+        let enggDataForComboObj = null;
         let entityData = fromDatastore(entities[i]);
-
-        enggDataForComboObj.currentKey = entityData.currentKey;
-        enggDataForComboObj.summary = entityData.summary;
 
         var acceptedDateMsec = new Date(entityData.acceptedDate).getTime();
         var dateCreatedMsec = new Date(entityData.dateCreated).getTime();
         var firstSprintStartDateMsec = new Date(entityData.firstSprintStartDate).getTime();
 
         logger.debug('entityData:' + JSON.stringify(entityData));
+
         if (entityData.dateCreatedMsec > iterationEndDateMsec) {
             count --;
-//            logger.debug('i:' + i + ', entities.length - 1:' + (entities.length - 1) + ', count:' + count);
             continue;
         }
 
-        var storyCreatedPriorToThisIteration = false;
-        var storyAcceptedThisIteration = false;
-        var storyAcceptedLastIteration = false;
+        enggDataForComboObj = {};
+        enggDataForComboObj.currentKey = entityData.currentKey;
+        enggDataForComboObj.summary = entityData.summary;
 
-        if (entityData.status == 'Accepted' && (acceptedDateMsec <= iterationEndDateMsec)) storyAcceptedThisIteration = true;
-        if (entityData.status == 'Accepted' && (acceptedDateMsec <= (iterationEndDateMsec - twoWksInMsec))) storyAcceptedLastIteration = true;
+        var storyCreatedPriorToThisIteration = false;
+
         if (dateCreatedMsec <= (iterationEndDateMsec - twoWksInMsec)) storyCreatedPriorToThisIteration = true;
         var queueTime = parseInt((!entityData.firstSprintStartDate ? (new Date().getTime() - dateCreatedMsec) /(oneDayInMsec) : (firstSprintStartDateMsec - dateCreatedMsec) /(oneDayInMsec)), 10);
         var months = 0;
@@ -463,28 +436,19 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         var flagStatusAtIterationEnd = false;
 
         if (entityData.dateCreatedMsec > iterationStartDateMsec){
-            statusAtIterationStart = null;
+            statusAtIterationStart = 'New';
             flagStatusAtIterationStart = true;
         }
 
-        for (var j=0; j < entityData.statusHistory.length - 1; j++) {
+        for (var j=0; j < entityData.statusHistory.length; j++) {
             let historyLine = JSON.parse(entityData.statusHistory[j]);
-            let prevHistoryLine = JSON.parse(entityData.statusHistory[j + 1]);
             if (!flagStatusAtIterationEnd && iterationEndDateMsec >= historyLine[1]) {
                 statusAtIterationEnd = historyLine[2];
-                flagStatusAtIterationEnd = true;
-            }
-            if (!flagStatusAtIterationEnd && (iterationEndDateMsec < historyLine[1]  && iterationEndDateMsec >= prevHistoryLine[1])) {
-                statusAtIterationEnd = prevHistoryLine[2];
                 flagStatusAtIterationEnd = true;
             }
 
             if (!flagStatusAtIterationStart && iterationStartDateMsec >= historyLine[1]) {
                 statusAtIterationStart = historyLine[2];
-                flagStatusAtIterationStart = true;
-            }
-            if (!flagStatusAtIterationStart && (iterationStartDateMsec < historyLine[1]  && iterationStartDateMsec >= prevHistoryLine[1])) {
-                statusAtIterationStart = prevHistoryLine[2];
                 flagStatusAtIterationStart = true;
             }
         }
@@ -499,32 +463,21 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         var flagStoryPointsAtIterationEnd = false;
 
         if (entityData.dateCreatedMsec > iterationStartDateMsec){
-            storyPointsAtIterationStart = null;
+            storyPointsAtIterationStart = 'New';
             flagStoryPointsAtIterationStart = true;
         }
 
-        for (var j=0; j < entityData.storyPointsHistory.length - 1; j++) {
+        for (var j=0; j < entityData.storyPointsHistory.length; j++) {
             let historyLine = JSON.parse(entityData.storyPointsHistory[j]);
-            let prevHistoryLine = JSON.parse(entityData.storyPointsHistory[j + 1]);
 
             if (!flagStoryPointsAtIterationEnd && iterationEndDateMsec >= historyLine[1]) {
                 if(historyLine[2]) storyPointsAtIterationEnd = historyLine[2];
                 else storyPointsAtIterationEnd = 'NS';
                 flagStoryPointsAtIterationEnd = true;
             }
-            if (!flagStoryPointsAtIterationEnd && (iterationEndDateMsec < historyLine[1]  && iterationEndDateMsec >= prevHistoryLine[1])) {
-                if(prevHistoryLine[2]) storyPointsAtIterationEnd = prevHistoryLine[2];
-                else storyPointsAtIterationEnd = 'NS';
-                flagStoryPointsAtIterationEnd = true;
-            }
 
             if (!flagStoryPointsAtIterationStart && iterationStartDateMsec >= historyLine[1]) {
                 if(historyLine[2]) storyPointsAtIterationStart = historyLine[2];
-                else storyPointsAtIterationStart = 'NS';
-                flagStoryPointsAtIterationStart = true;
-            }
-            if (!flagStoryPointsAtIterationStart && (iterationStartDateMsec < historyLine[1]  && iterationStartDateMsec >= prevHistoryLine[1])) {
-                if(prevHistoryLine[2]) storyPointsAtIterationStart = prevHistoryLine[2];
                 else storyPointsAtIterationStart = 'NS';
                 flagStoryPointsAtIterationStart = true;
             }
@@ -544,17 +497,11 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
             flagFixVersionsAtIterationStart = true;
         }
 
-        for (var j=0; j < entityData.fixVersionHistory.length - 1; j++) {
+        for (var j=0; j < entityData.fixVersionHistory.length; j++) {
             let historyLine = JSON.parse(entityData.fixVersionHistory[j]);
-            let prevHistoryLine = JSON.parse(entityData.fixVersionHistory[j + 1]);
 
             if (!flagFixVersionsAtIterationEnd && iterationEndDateMsec >= historyLine[1]) {
                 if(historyLine[2]) fixVersionsAtIterationEnd = historyLine[2];
-                else fixVersionsAtIterationEnd = 'NS';
-                flagFixVersionsAtIterationEnd = true;
-            }
-            if (!flagFixVersionsAtIterationEnd && (iterationEndDateMsec < historyLine[1]  && iterationEndDateMsec >= prevHistoryLine[1])) {
-                if(prevHistoryLine[2]) fixVersionsAtIterationEnd = prevHistoryLine[2];
                 else fixVersionsAtIterationEnd = 'NS';
                 flagFixVersionsAtIterationEnd = true;
             }
@@ -564,411 +511,32 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
                 else fixVersionsAtIterationStart = 'NS';
                 flagFixVersionsAtIterationStart = true;
             }
-            if (!flagFixVersionsAtIterationStart && (iterationStartDateMsec < historyLine[1]  && iterationStartDateMsec >= prevHistoryLine[1])) {
-                if(prevHistoryLine[2]) fixVersionsAtIterationStart = prevHistoryLine[2];
-                else fixVersionsAtIterationStart = 'NS';
-                flagFixVersionsAtIterationStart = true;
-            }
         }
         enggDataForComboObj.fixVersionsAtIterationEnd = fixVersionsAtIterationEnd;
         enggDataForComboObj.fixVersionsAtIterationStart = fixVersionsAtIterationStart;
 
         logger.debug('enggDataForComboObj' + JSON.stringify(enggDataForComboObj));
-/*
-        var pmStoryData = null;
-        for (j = 0 ; j < PMEntities.length; j++) {
-            if (!entityData.PMStoryID) break;
-            if (PMEntities[j].data.id == entityData.PMStoryID) {
-                pmStoryData = PMEntities[j].data;
-                break;
-            }
-        }
-
-        var idxPMStoryInComboObj = null;
-        for (j = 0; j < comboObj.length; j++) {
-            if (comboObj.length == 0) break;
-            if((comboObj[j].pmstory && comboObj[j].pmstory.id == entityData.PMStoryID) || (!comboObj[j].pmstory && (!entityData.PMStoryID || !pmStoryData))) {
-                idxPMStoryInComboObj = j;
-            }
-        }
-        logger.debug('idxPMStoryInComboObj:' + idxPMStoryInComboObj);
-
-        logger.debug('entityData:' + JSON.stringify(entityData));
-        logger.debug('entityData.PMStoryID:' + entityData.PMStoryID);
-        if (idxPMStoryInComboObj != null) {
-            if (pmStoryData) {
-                comboObj[idxPMStoryInComboObj].enggstories.push(enggDataForComboObj);
-                var pmstoryFromComboObj = comboObj[idxPMStoryInComboObj].pmstory;
-                pmstoryFromComboObj.totalStoriesThisIteration = pmstoryFromComboObj.totalStoriesThisIteration + 1;
-                if (storyCreatedPriorToThisIteration) pmstoryFromComboObj.totalStoriesLastIteration = pmstoryFromComboObj.totalStoriesLastIteration + 1;
-                if (storyAcceptedThisIteration) pmstoryFromComboObj.storyAcceptedThisIteration = pmstoryFromComboObj.storyAcceptedThisIteration + 1;
-                if (storyAcceptedLastIteration) pmstoryFromComboObj.storyAcceptedLastIteration = pmstoryFromComboObj.storyAcceptedLastIteration + 1;
-                comboObj[idxPMStoryInComboObj].pmstory = pmstoryFromComboObj;
-                logger.debug('i:' + i + ', pushed engg story:' + entities[i].key.id);
-                count --;
-            }
-            else {
-                comboObj[idxPMStoryInComboObj].enggstories.push(enggDataForComboObj);
-                count --;
-            }
-        }
-        else {
-            if (pmStoryData) {
-                logger.debug('pmStoryData:' + JSON.stringify(pmStoryData));
-                var PMStoryEntityData = {};
-                PMStoryEntityData.id = pmStoryData.id;
-                PMStoryEntityData.key = pmStoryData.currentKey;
-                PMStoryEntityData.summary = pmStoryData.summary;
-                PMStoryEntityData.fixVersion = pmStoryData.fixVersion;
-                PMStoryEntityData.totalStoriesThisIteration = 1;
-                if (storyCreatedPriorToThisIteration) PMStoryEntityData.totalStoriesLastIteration = 1;
-                if (storyAcceptedThisIteration) PMStoryEntityData.storyAcceptedThisIteration = 1;
-                if (storyAcceptedLastIteration) PMStoryEntityData.storyAcceptedLastIteration = 1;
-
-                logger.debug('PMStoryEntityData:' + JSON.stringify(PMStoryEntityData));
-                comboObj.push({pmstory: PMStoryEntityData, enggstories: [enggDataForComboObj]});
-                count --;
-            }
-            else {
-                // comboObj.push({pmstory: null, enggstories: [enggDataForComboObj]});
-                comboObj.push({pmstory: null, enggstories: [enggDataForComboObj]});
-                count --;
-                logger.debug('comboObj:' + JSON.stringify(comboObj));
-            }
-        }
-*/
         comboObjEnggstories.push(enggDataForComboObj);
         count --;
 
         if (pmStoryData){
             PMStoryEntityData.totalStoriesThisIteration = PMStoryEntityData.totalStoriesThisIteration + 1;
             if (storyCreatedPriorToThisIteration) PMStoryEntityData.totalStoriesLastIteration = PMStoryEntityData.totalStoriesLastIteration + 1;
-            if (storyAcceptedThisIteration) PMStoryEntityData.storyAcceptedThisIteration = PMStoryEntityData.storyAcceptedThisIteration + 1;
-            if (storyAcceptedLastIteration) PMStoryEntityData.storyAcceptedLastIteration = PMStoryEntityData.storyAcceptedLastIteration + 1;
+            if (enggDataForComboObj.statusAtIterationEnd == 'Accepted') PMStoryEntityData.storyAcceptedThisIteration = PMStoryEntityData.storyAcceptedThisIteration + 1;
+            if (enggDataForComboObj.statusAtIterationStart == 'Accepted') PMStoryEntityData.storyAcceptedLastIteration = PMStoryEntityData.storyAcceptedLastIteration + 1;
         }
 
-        logger.debug('i:' + i + ', entities.length - 1:' + (entities.length - 1) + ', count:' + count);
     }
 
     if (count == 0) {
         logger.debug('completed pushing all engg stories.');
-        comboObj.push({pmstory: PMStoryEntityData, enggstories: comboObjEnggstories});
-        logger.debug('comboObj:' + JSON.stringify(comboObj));
-        cb(null, comboObj);
+        if (PMStoryEntityData) {
+            PMStoryEntityData.percentComplete = PMStoryEntityData.totalStoriesThisIteration == 0 ? 0 : parseInt(PMStoryEntityData.storyAcceptedThisIteration*100 / PMStoryEntityData.totalStoriesThisIteration, 10);
+            PMStoryEntityData.percentCompleteLastIteration = PMStoryEntityData.totalStoriesLastIteration == 0 ? 0 : parseInt(PMStoryEntityData.storyAcceptedLastIteration*100 / PMStoryEntityData.totalStoriesLastIteration, 10);
+            PMStoryEntityData.percentChange = PMStoryEntityData.percentCompleteLastIteration > 0 ? '+' + PMStoryEntityData.percentCompleteLastIteration : PMStoryEntityData.percentCompleteLastIteration;
+        }
+        cb(null, {'pmstory': PMStoryEntityData, 'enggstories': comboObjEnggstories});
         return;
-    }
-}
-
-/*
-function asyncFetchEnggStories (iterationName, iterationStartDateMsec, iterationEndDateMsec, cb) {
-    // const PMStoryKey = ds.key(['Event', event, 'PMStories', parseInt(pmstoryid, 10)]);
-    // const PMStoryKey = ds.key(['PMStories', pmstoryid]);
-    const q = ds.createQuery(['EnggStory'])
-        .filter('sprintsTravelled', '=', iterationName);
-        // .order('entityUpdateTimeMsec')
-        // .order('PMStoryID');
-
-    ds.runQuery(q, (err, EnggEntities, nextQuery) => {
-        if (err) {
-            cb(err);
-            return;
-        }
-        if (!EnggEntities) {
-            cb('Something wrong. Could not get enggStories changed in iteration starting:' + new Date(iterationStartDateMsec), null);
-        }
-        if (EnggEntities) {
-            // logger.debug('entities:' + JSON.stringify(entities));
-            // lets iteration thru all entities and get their PMStory Ids so we can query all PMStory Entities also
-            var keys = [];
-
-            for (var k = 0; k < EnggEntities.length; k++) {
-                logger.debug('EnggEntities[k].data.PMStoryID:' + EnggEntities[k].data.PMStoryID);
-                if (EnggEntities[k].data.PMStoryID) keys.push(ds.key(['PMStory', EnggEntities[k].data.PMStoryID]));
-            }
-
-            ds.get(keys, (err, PMEntities) => {
-                if (err) {
-                    logger.error(err);
-                    cb (err, null);
-                    return;
-                }
-                else {
-                    logger.debug('calling buildComboObj');
-                    buildComboObj(iterationStartDateMsec, iterationEndDateMsec, EnggEntities, PMEntities, (err, ComboObj) => {
-                        if (err) {
-                            logger.error(err);
-                            cb (err, null);
-                        }
-                        else cb (null, ComboObj);
-                    });
-                }
-            });
-        }
-    });
-}
-*/
-
-function buildComboObj (iterationStartDateMsec, iterationEndDateMsec, entities, PMEntities, cb) {
-    var count = entities.length;
-
-    if (entities.length == 0) {
-        logger.info('there are no enggStories changed in iteration starting:' + new Date(iterationStartDateMsec));
-        cb(null, null);
-    }
-
-    var comboObj = [];
-    for (var i=0; i < entities.length; i++) {
-        let enggDataForComboObj = {};
-        let entityData = fromDatastore(entities[i]);
-
-        enggDataForComboObj.currentKey = entityData.currentKey;
-        enggDataForComboObj.summary = entityData.summary;
-
-        var acceptedDateMsec = new Date(entityData.acceptedDate).getTime();
-        var dateCreatedMsec = new Date(entityData.dateCreated).getTime();
-        var firstSprintStartDateMsec = new Date(entityData.firstSprintStartDate).getTime();
-
-        if (entityData.dateCreatedMsec > iterationEndDateMsec) {
-            count --;
-            continue;
-        }
-
-        var storyCreatedPriorToThisIteration = false;
-        var storyAcceptedThisIteration = false;
-        var storyAcceptedLastIteration = false;
-
-        if (entityData.status == 'Accepted' && (acceptedDateMsec <= iterationEndDateMsec)) storyAcceptedThisIteration = true;
-        if (entityData.status == 'Accepted' && (acceptedDateMsec <= (iterationEndDateMsec - twoWksInMsec))) storyAcceptedLastIteration = true;
-        // totalStoriesThisIteration++
-        if (dateCreatedMsec <= (iterationEndDateMsec - twoWksInMsec)) storyCreatedPriorToThisIteration = true;
-        var queueTime = parseInt((!entityData.firstSprintStartDate ? (new Date().getTime() - dateCreatedMsec) /(oneDayInMsec) : (firstSprintStartDateMsec - dateCreatedMsec) /(oneDayInMsec)), 10);
-        var months = 0;
-        while (queueTime >= 30) {
-            months++;
-            queueTime = queueTime - 30;
-        }
-        var weeks = 0;
-        while (queueTime >= 7) {
-            weeks++;
-            queueTime = queueTime - 7;
-        }
-        var queueTimeStr = null;
-        if(months > 0) queueTimeStr = months + 'm';
-        if(weeks > 0) queueTimeStr = queueTimeStr ? (queueTimeStr + ' ' + weeks + 'w') : (weeks + 'w');
-        if(queueTime > 0) queueTimeStr = queueTimeStr ? (queueTimeStr + ' ' + queueTime + 'd') : (queueTime + 'd');
-        enggDataForComboObj.queueTime = queueTimeStr ? queueTimeStr : '0d';
-
-        var cycleTime;
-        var cycleTimeStr = null;
-        if (entityData.firstSprintStartDate) {
-            cycleTime = parseInt((entityData.status == 'Accepted'? ((acceptedDateMsec - firstSprintStartDateMsec) / (oneDayInMsec)) : ((new Date().getTime() - firstSprintStartDateMsec) / (oneDayInMsec))), 10);
-        }
-        else {
-            if (entityData.status == 'Accepted') cycleTime = parseInt(((acceptedDateMsec - dateCreatedMsec) / (oneDayInMsec)), 10);
-        }
-        months = 0;
-        while (cycleTime >= 30) {
-            months++;
-            cycleTime = cycleTime - 30;
-        }
-        weeks = 0;
-        while (cycleTime >= 7) {
-            weeks++;
-            cycleTime = cycleTime - 7;
-        }
-        if(months > 0) cycleTimeStr = months + 'm';
-        if(weeks > 0) cycleTimeStr = cycleTimeStr ? (cycleTimeStr + ' ' + weeks + 'w') : (weeks + 'w');
-        if(cycleTime > 0) cycleTimeStr = cycleTimeStr ? (cycleTimeStr + ' ' + cycleTime + 'd') : (cycleTime + 'd');
-        enggDataForComboObj.cycleTime = cycleTimeStr;
-
-        // let's get the change in status
-        var statusAtIterationStart = null;
-        var statusAtIterationEnd = null;
-        var flagStatusAtIterationStart = false;
-        var flagStatusAtIterationEnd = false;
-
-        if (entityData.dateCreatedMsec > iterationStartDateMsec){
-            statusAtIterationStart = null;
-            flagStatusAtIterationStart = true;
-        }
-
-        for (var j=0; j < entityData.statusHistory.length - 1; j++) {
-            let historyLine = JSON.parse(entityData.statusHistory[j]);
-            let prevHistoryLine = JSON.parse(entityData.statusHistory[j + 1]);
-            if (!flagStatusAtIterationEnd && iterationEndDateMsec >= historyLine[1]) {
-                statusAtIterationEnd = historyLine[2];
-                flagStatusAtIterationEnd = true;
-            }
-            if (!flagStatusAtIterationEnd && (iterationEndDateMsec < historyLine[1]  && iterationEndDateMsec >= prevHistoryLine[1])) {
-                statusAtIterationEnd = prevHistoryLine[2];
-                flagStatusAtIterationEnd = true;
-            }
-
-            if (!flagStatusAtIterationStart && iterationStartDateMsec >= historyLine[1]) {
-                statusAtIterationStart = historyLine[2];
-                flagStatusAtIterationStart = true;
-            }
-            if (!flagStatusAtIterationStart && (iterationStartDateMsec < historyLine[1]  && iterationStartDateMsec >= prevHistoryLine[1])) {
-                statusAtIterationStart = prevHistoryLine[2];
-                flagStatusAtIterationStart = true;
-            }
-        }
-        enggDataForComboObj.statusAtIterationEnd = statusAtIterationEnd;
-        enggDataForComboObj.statusAtIterationStart = statusAtIterationStart;
-        enggDataForComboObj.statusChanged = statusAtIterationEnd == statusAtIterationStart ? false : true;
-
-        // let's get the change in StoryPoint
-        var storyPointsAtIterationStart = null;
-        var storyPointsAtIterationEnd = null;
-        var flagStoryPointsAtIterationStart = false;
-        var flagStoryPointsAtIterationEnd = false;
-
-        if (entityData.dateCreatedMsec > iterationStartDateMsec){
-            storyPointsAtIterationStart = null;
-            flagStoryPointsAtIterationStart = true;
-        }
-
-        for (var j=0; j < entityData.storyPointsHistory.length - 1; j++) {
-            let historyLine = JSON.parse(entityData.storyPointsHistory[j]);
-            let prevHistoryLine = JSON.parse(entityData.storyPointsHistory[j + 1]);
-
-            if (!flagStoryPointsAtIterationEnd && iterationEndDateMsec >= historyLine[1]) {
-                if(historyLine[2]) storyPointsAtIterationEnd = historyLine[2];
-                else storyPointsAtIterationEnd = 'NS';
-                flagStoryPointsAtIterationEnd = true;
-            }
-            if (!flagStoryPointsAtIterationEnd && (iterationEndDateMsec < historyLine[1]  && iterationEndDateMsec >= prevHistoryLine[1])) {
-                if(prevHistoryLine[2]) storyPointsAtIterationEnd = prevHistoryLine[2];
-                else storyPointsAtIterationEnd = 'NS';
-                flagStoryPointsAtIterationEnd = true;
-            }
-
-            if (!flagStoryPointsAtIterationStart && iterationStartDateMsec >= historyLine[1]) {
-                if(historyLine[2]) storyPointsAtIterationStart = historyLine[2];
-                else storyPointsAtIterationStart = 'NS';
-                flagStoryPointsAtIterationStart = true;
-            }
-            if (!flagStoryPointsAtIterationStart && (iterationStartDateMsec < historyLine[1]  && iterationStartDateMsec >= prevHistoryLine[1])) {
-                if(prevHistoryLine[2]) storyPointsAtIterationStart = prevHistoryLine[2];
-                else storyPointsAtIterationStart = 'NS';
-                flagStoryPointsAtIterationStart = true;
-            }
-        }
-        enggDataForComboObj.storyPointsAtIterationEnd = storyPointsAtIterationEnd;
-        enggDataForComboObj.storyPointsAtIterationStart = storyPointsAtIterationStart;
-        enggDataForComboObj.storyPointsChanged = storyPointsAtIterationEnd == storyPointsAtIterationStart ? false : true;
-
-        // let's get the change in fixVersions
-        var fixVersionsAtIterationStart = null;
-        var fixVersionsAtIterationEnd = null;
-        var flagFixVersionsAtIterationStart = false;
-        var flagFixVersionsAtIterationEnd = false;
-
-        if (entityData.dateCreatedMsec > iterationStartDateMsec){
-            fixVersionsAtIterationStart = null;
-            flagFixVersionsAtIterationStart = true;
-        }
-
-        for (var j=0; j < entityData.fixVersionHistory.length - 1; j++) {
-            let historyLine = JSON.parse(entityData.fixVersionHistory[j]);
-            let prevHistoryLine = JSON.parse(entityData.fixVersionHistory[j + 1]);
-
-            if (!flagFixVersionsAtIterationEnd && iterationEndDateMsec >= historyLine[1]) {
-                if(historyLine[2]) fixVersionsAtIterationEnd = historyLine[2];
-                else fixVersionsAtIterationEnd = 'NS';
-                flagFixVersionsAtIterationEnd = true;
-            }
-            if (!flagFixVersionsAtIterationEnd && (iterationEndDateMsec < historyLine[1]  && iterationEndDateMsec >= prevHistoryLine[1])) {
-                if(prevHistoryLine[2]) fixVersionsAtIterationEnd = prevHistoryLine[2];
-                else fixVersionsAtIterationEnd = 'NS';
-                flagFixVersionsAtIterationEnd = true;
-            }
-
-            if (!flagFixVersionsAtIterationStart && iterationStartDateMsec >= historyLine[1]) {
-                if(historyLine[2]) fixVersionsAtIterationStart = historyLine[2];
-                else fixVersionsAtIterationStart = 'NS';
-                flagFixVersionsAtIterationStart = true;
-            }
-            if (!flagFixVersionsAtIterationStart && (iterationStartDateMsec < historyLine[1]  && iterationStartDateMsec >= prevHistoryLine[1])) {
-                if(prevHistoryLine[2]) fixVersionsAtIterationStart = prevHistoryLine[2];
-                else fixVersionsAtIterationStart = 'NS';
-                flagFixVersionsAtIterationStart = true;
-            }
-        }
-        enggDataForComboObj.fixVersionsAtIterationEnd = fixVersionsAtIterationEnd;
-        enggDataForComboObj.fixVersionsAtIterationStart = fixVersionsAtIterationStart;
-
-        logger.debug('enggDataForComboObj' + JSON.stringify(enggDataForComboObj));
-
-        var pmStoryData = null;
-        for (j = 0 ; j < PMEntities.length; j++) {
-            if (!entityData.PMStoryID) break;
-            if (PMEntities[j].data.id == entityData.PMStoryID) {
-                pmStoryData = PMEntities[j].data;
-                break;
-            }
-        }
-
-        var idxPMStoryInComboObj = null;
-        for (j = 0; j < comboObj.length; j++) {
-            if (comboObj.length == 0) break;
-            if((comboObj[j].pmstory && comboObj[j].pmstory.id == entityData.PMStoryID) || (!comboObj[j].pmstory && (!entityData.PMStoryID || !pmStoryData))) {
-                idxPMStoryInComboObj = j;
-            }
-        }
-        logger.debug('idxPMStoryInComboObj:' + idxPMStoryInComboObj);
-
-        logger.debug('entityData:' + JSON.stringify(entityData));
-        logger.debug('entityData.PMStoryID:' + entityData.PMStoryID);
-
-        if (idxPMStoryInComboObj != null) {
-            if (pmStoryData) {
-                comboObj[idxPMStoryInComboObj].enggstories.push(enggDataForComboObj);
-                var pmstoryFromComboObj = comboObj[idxPMStoryInComboObj].pmstory;
-                pmstoryFromComboObj.totalStoriesThisIteration = pmstoryFromComboObj.totalStoriesThisIteration + 1;
-                if (storyCreatedPriorToThisIteration) pmstoryFromComboObj.totalStoriesLastIteration = pmstoryFromComboObj.totalStoriesLastIteration + 1;
-                if (storyAcceptedThisIteration) pmstoryFromComboObj.storyAcceptedThisIteration = pmstoryFromComboObj.storyAcceptedThisIteration + 1;
-                if (storyAcceptedLastIteration) pmstoryFromComboObj.storyAcceptedLastIteration = pmstoryFromComboObj.storyAcceptedLastIteration + 1;
-                comboObj[idxPMStoryInComboObj].pmstory = pmstoryFromComboObj;
-                logger.debug('i:' + i + ', pushed engg story:' + entities[i].key.id);
-                count --;
-            }
-            else {
-                comboObj[idxPMStoryInComboObj].enggstories.push(enggDataForComboObj);
-                count --;
-            }
-        }
-        else {
-            if (pmStoryData) {
-                logger.debug('pmStoryData:' + JSON.stringify(pmStoryData));
-                var PMStoryEntityData = {};
-                PMStoryEntityData.id = pmStoryData.id;
-                PMStoryEntityData.key = pmStoryData.currentKey;
-                PMStoryEntityData.summary = pmStoryData.summary;
-                PMStoryEntityData.fixVersion = pmStoryData.fixVersion;
-                PMStoryEntityData.totalStoriesThisIteration = 1;
-                if (storyCreatedPriorToThisIteration) PMStoryEntityData.totalStoriesLastIteration = 1;
-                if (storyAcceptedThisIteration) PMStoryEntityData.storyAcceptedThisIteration = 1;
-                if (storyAcceptedLastIteration) PMStoryEntityData.storyAcceptedLastIteration = 1;
-
-                logger.debug('PMStoryEntityData:' + JSON.stringify(PMStoryEntityData));
-                comboObj.push({pmstory: PMStoryEntityData, enggstories: [enggDataForComboObj]});
-                count --;
-            }
-            else {
-                // comboObj.push({pmstory: null, enggstories: [enggDataForComboObj]});
-                comboObj.push({pmstory: null, enggstories: [enggDataForComboObj]});
-                count --;
-                logger.debug('comboObj:' + JSON.stringify(comboObj));
-            }
-        }
-        logger.debug('i:' + i + ', entities.length - 1:' + (entities.length - 1) + ', count:' + count);
-        if (count == 0) {
-            logger.debug('completed pushing all engg stories.');
-            logger.debug('comboObj:' + JSON.stringify(comboObj));
-            cb(null, comboObj);
-            return;
-        }
     }
 }
 
@@ -1573,7 +1141,6 @@ module.exports = {
     getIterationDates: _getIterationDates,
     copyAndDeleteEntities: _copyAndDeleteEntities,
     fetchComboObj: _fetchComboObj,
-    buildComboObj,
     ds,
     twoWksInMsec
 };

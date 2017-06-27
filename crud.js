@@ -38,8 +38,8 @@ router.use((req, res, next) => {
  *
  * Display a page of books (up to ten at a time).
  */
-router.get('/groominghealth/:event', (req, res, next) => {
-  console.log(req.params.event);
+router.get('/groominghealth', (req, res, next) => {
+  console.log('req.params.event:' + req.params.event);
   getModel().fetchComboObj('Iteration 11 - 2017', (err, comboObjs) => {
     if (err) {
       console.log(err);
@@ -54,13 +54,21 @@ router.get('/groominghealth/:event', (req, res, next) => {
     // console.log(pmstories);
     if(comboObjs) {
         console.log('returned all the combo objs. Ready to send HTML');
+        console.log('comboObjs:' + JSON.stringify(comboObjs));
+
         comboObjs.forEach((x) => {
-          console.log(x.pmstory);
+          console.log('x:' + JSON.stringify(x));
+          console.log('x:' + x);
+          console.log('x.pmstory:' + x.pmstory);
+          console.log('x.enggstories:' + x.enggstories);
+
           x.enggstories.forEach ((enggstory) => {
             console.log(enggstory);
           })
+
         });
-        res.render('books/table.jade', {
+
+        res.render('groominghealth.jade', {
             ComboObjs: comboObjs
         });
     }

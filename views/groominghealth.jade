@@ -1,0 +1,56 @@
+//- Copyright 2015-2016, Google, Inc.
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+
+extends ./base.jade
+
+block content
+    table#pmstoriestable
+      caption PM Stories Status
+        tr
+          th.pmstorykey='PM Story'
+          th.pmstorykey='Fix Version(s)'
+          th.pmstorystatus='Status (% Accepted, % Change)'
+          th.enggstorykey='Engg StoryID'
+          th.status(colspan=4)='Status'
+          th.storypoints(colspan=4)='Story Points'
+          th.timespent='Queue Time'
+          th.timespent='Cycle Time'
+      each ComboObj in ComboObjs
+        tr
+          if ComboObj.pmstory == null
+            td.pmstorykey(rowspan=ComboObj.enggstories.length + 1)= 'null'
+            td.pmstorykey(rowspan=ComboObj.enggstories.length + 1)= 'null'
+            td.pmstorystatus(rowspan=ComboObj.enggstories.length + 1)='null'
+          else
+            td.pmstorykey(rowspan=ComboObj.enggstories.length + 1)= '[' + ComboObj.pmstory.key + '] ' + ComboObj.pmstory.summary
+            td.pmstorykey(rowspan=ComboObj.enggstories.length + 1)= ComboObj.pmstory.fixVersion
+            td.pmstorystatus(rowspan=ComboObj.enggstories.length + 1)=ComboObj.pmstory.status + ', ' + ComboObj.pmstory.percentComplete + '% (' + ComboObj.pmstory.percentChange + '%)'
+        each enggStory in ComboObj.enggstories
+          td.enggstorykey=enggStory.currentKey
+          if enggStory.statusChanged
+            td.status=enggStory.statusAtIterationEnd
+            td=' ('
+            td.statusold=enggStory.statusAtIterationStart
+            td=')'
+          else
+            td.status(colspan=4)=enggStory.statusAtIterationStart
+          if enggStory.storyPointsChanged
+            td.status=enggStory.storyPointsAtIterationEnd
+            td=' ('
+            td.statusold=enggStory.storyPointsAtIterationStart
+            td=')'
+          else
+            td.status(colspan=4)=enggStory.storyPointsAtIterationStart
+          td.timespent=enggStory.queueTime
+          td.timespent=enggStory.cycleTime
+          </tr>
