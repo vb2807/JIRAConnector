@@ -371,7 +371,6 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         let enggDataForComboObj = null;
         let entityData = fromDatastore(entities[i]);
 
-        var acceptedDateMsec = new Date(entityData.acceptedDate).getTime();
         var dateCreatedMsec = new Date(entityData.dateCreated).getTime();
         var firstSprintStartDateMsec = new Date(entityData.firstSprintStartDate).getTime();
 
@@ -388,7 +387,7 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
 
         var storyCreatedPriorToThisIteration = false;
 
-        if (dateCreatedMsec <= (iterationEndDateMsec - twoWksInMsec)) storyCreatedPriorToThisIteration = true;
+        if (dateCreatedMsec <= iterationStartDateMsec) storyCreatedPriorToThisIteration = true;
         var queueTime = parseInt((!entityData.firstSprintStartDate ? (new Date().getTime() - dateCreatedMsec) /(oneDayInMsec) : (firstSprintStartDateMsec - dateCreatedMsec) /(oneDayInMsec)), 10);
         var months = 0;
         while (queueTime >= 30) {
@@ -409,10 +408,10 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         var cycleTime;
         var cycleTimeStr = null;
         if (entityData.firstSprintStartDate) {
-            cycleTime = parseInt((entityData.status == 'Accepted'? ((acceptedDateMsec - firstSprintStartDateMsec) / (oneDayInMsec)) : ((new Date().getTime() - firstSprintStartDateMsec) / (oneDayInMsec))), 10);
+            cycleTime = parseInt((entityData.status == 'Accepted'? ((entityData.acceptedDateMsec - firstSprintStartDateMsec) / (oneDayInMsec)) : ((new Date().getTime() - firstSprintStartDateMsec) / (oneDayInMsec))), 10);
         }
         else {
-            if (entityData.status == 'Accepted') cycleTime = parseInt(((acceptedDateMsec - dateCreatedMsec) / (oneDayInMsec)), 10);
+            if (entityData.status == 'Accepted') cycleTime = parseInt(((entityData.acceptedDateMsec - dateCreatedMsec) / (oneDayInMsec)), 10);
         }
         months = 0;
         while (cycleTime >= 30) {
@@ -1008,6 +1007,26 @@ function _reverseLastUpdateTime () {
     });
 }
 
+function _getIterationsFromDataStore(token, cb) {
+    var limit = 50;
+
+    const q = ds.createQuery(['Iteration'])
+        .limit(limit)
+        .start(token);
+
+    var iterations = [];
+    ds.runQuery(q, (err, entities, nextQuery) => {
+        if (err) {
+            cb(err);
+            return;
+        }
+        for (var i = 0; i < entities.length; i++) {
+            iterations.push(entities[i].key.name);
+        }
+        const hasMore = nextQuery.moreResults !== Datastore.NO_MORE_RESULTS ? nextQuery.endCursor : false;
+        return cb(null, iterations, hasMore);
+    });
+}
 
 function _writeLastUpdateTime (lastUpdateTimeMsec, cb) {
     const keyLastUpdateTime = ds.key(['lastUpdateTime', 'lastUpdateTime']);
@@ -1141,6 +1160,7 @@ module.exports = {
     getIterationDates: _getIterationDates,
     copyAndDeleteEntities: _copyAndDeleteEntities,
     fetchComboObj: _fetchComboObj,
+    getIterationsFromDataStore: _getIterationsFromDataStore,
     ds,
     twoWksInMsec
 };

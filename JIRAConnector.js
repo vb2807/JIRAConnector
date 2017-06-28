@@ -278,7 +278,7 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
             "created",
             "updated",
             "timespent",
-            "customfield_10016",
+            "customfield_10016", //Sprint field in JIRA
             "customfield_10109",
             "fixVersions",
             "assignee",
@@ -479,14 +479,6 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
         var dateHistoryObj = new Date(dateHistoryStr);
         var dateHistoryMsec = dateHistoryObj.getTime();
 
-        // if this is delta agg and if this history is old then ignore
-        // if (deltaSince) {
-        //    var deltaSinceDateObj = new Date(deltaSince);
-        //    if (dateHistoryMsec < deltaSinceDateObj.getTime()) continue;
-        // }
-
-
-        // dateHistory = dateHistory.getFullYear() + '-' + (dateHistory.getMonth() + 1) + '-' + dateHistory.getDate();
         for (var indexSpecificHistoryItems = specificHistory.items.length - 1; indexSpecificHistoryItems >= 0; indexSpecificHistoryItems--) {
             var historyItem = specificHistory.items[indexSpecificHistoryItems];
             if(historyItem.field == 'status') {
@@ -495,8 +487,8 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
                 statusHistory.push(JSON.stringify([lastItemStatusHistory[0], lastItemStatusHistory[1], historyItem.fromString]));
 
                 if (historyItem.toString == 'Accepted' && !acceptedDate) {
-                    // acceptedDate = dateHistory;
-                    acceptedDate = dateHistoryObj.getFullYear() + '-' + (dateHistoryObj.getMonth() + 1) + '-' + dateHistoryObj.getDate();
+                    acceptedDate = dateHistoryObj;
+                    // acceptedDate = dateHistoryObj.getFullYear() + '-' + (dateHistoryObj.getMonth() + 1) + '-' + dateHistoryObj.getDate();
                 }
             }
             if(historyItem.field == 'Sprint') {
@@ -590,13 +582,11 @@ function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, delt
             },
             {
                 name: 'PMStoryKey',
-                value: PMStoryKey,
-                excludeFromIndexes: true
+                value: PMStoryKey
             },
             {
                 name: 'currentKey',
-                value: specificIssue.key,
-                excludeFromIndexes: true
+                value: specificIssue.key
             },
             {
                 name: 'summary',
@@ -663,8 +653,12 @@ function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, delt
                 excludeFromIndexes: true
             },
             {
+                name: 'acceptedDateMsec',
+                value: acceptedDate ? acceptedDate.getTime() : null
+            },
+            {
                 name: 'acceptedDate',
-                value: acceptedDate
+                value: acceptedDate ? acceptedDate.getFullYear() + '-' + (acceptedDate.getMonth() + 1) + '-' + acceptedDate.getDate() : null
             },
             {
                 name: 'currentSprint',
@@ -729,12 +723,12 @@ function _deltaAgg(optionSelected) {
     else JIRAProjects = optionSelected;
 
     getModel().getLastUpdateTime(JIRAProjects, (err, JIRAProjects, deltaSince) => {
-        var cursor = 0;
         if (err) {
             logger.error('Could not get last update time.');
             logger.error(err);
             return;
         }
+        var cursor = 0;
         processSearchResults(JIRAProjects, cursor, new Date(), deltaSince);
     });
 }

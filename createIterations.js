@@ -152,32 +152,32 @@ process.argv.forEach(function (val, index, array) {
 function createCONIteration() {
 
     // let's create 20 CONIterations i.e. 'CON - Iteration 01' thru 'CON - Iteration 20'
-    var startDateMsecCONIteration01 = new Date('21-Dec-2015').getTime();
-    var endDateMsecCONIteration01 = new Date('1-Jan-2016').getTime();
+    var startDateMsecCONIteration01 = new Date('2015-12-20T18:00:00.000-05:00').getTime();
+    // var endDateMsecCONIteration01 = new Date('1-Jan-2016').getTime();
 
     for (var i = 1; i <= 20; i++) {
         var iterationName;
         if (i < 10) iterationName = 'CON - Iteration 0' + i;
         else iterationName = 'CON - Iteration ' + i;
-        var startDate = new Date(startDateMsecCONIteration01 + ((i-1)*14*24*60*60*1000));
-        var endDate = new Date(endDateMsecCONIteration01 + ((i-1)*14*24*60*60*1000));
+        var startDateMsec = startDateMsecCONIteration01 + ((i-1)*14*24*60*60*1000);
+        var endDateMsec = startDateMsec + 14*24*60*60*1000 - 1;
         // logger.debug('endDateMsecCONIteration01 + (i*14*24*60*60*1000):' + (endDateMsecCONIteration01 + (i*14*24*60*60*1000)));
         var iterationData = [
             {
                 name: 'startDate',
-                value: startDate.getFullYear() + '-' + (startDate.getMonth() + 1) + '-' + startDate.getDate()
+                value: new Date(startDateMsec)
             },
             {
                 name: 'startDateMsec',
-                value: startDate.getTime()
+                value: startDateMsec
             },
             {
                 name: 'endDate',
-                value: endDate.getFullYear() + '-' + (endDate.getMonth() + 1) + '-' + endDate.getDate()
+                value: new Date(endDateMsec)
             },
             {
                 name: 'endDateMsec',
-                value: endDate.getTime()
+                value: endDateMsec
             }
             ];
 
@@ -185,6 +185,12 @@ function createCONIteration() {
             if(err) logger.error(err);
             else logger.info(itrName + ' created.' + 'itrData:' + JSON.stringify(itrData));
         });
+        if (i == 9) {
+            getModel().createIteration('CON - Iteration 9', iterationData, (err, itrName, itrData) => {
+                if(err) logger.error(err);
+                else logger.info(itrName + ' created.' + 'itrData:' + JSON.stringify(itrData));
+            });
+        }
     }
 }
 
@@ -194,17 +200,16 @@ function createIteration(reqDate) {
         logger.error('Provide date until when iterations are to be created');
         return;
     }
-    var startDateMsecIteration01 = new Date('09-Jan-2017').getTime();
-    var endDateMsecIteration01 = new Date('20-Jan-2017').getTime();
+    var startDateMsecIteration01 = new Date('2017-01-08T18:00:00.000-05:00').getTime();
     var continueIterationCreation = true;
     var reqDateMsec = new Date(reqDate);
 
     for (var i = 1; continueIterationCreation; i++) {
         var iterationName;
-        var startDate = new Date(startDateMsecIteration01 + ((i-1)*14*24*60*60*1000));
-        var endDate = new Date(endDateMsecIteration01 + ((i-1)*14*24*60*60*1000));
-        if (endDate.getTime() > reqDateMsec) {
-            logger.info('endDate.getTime() > reqDateMsec.' + ' endDate:' + endDate + ' reqDate:' + reqDate );
+        var startDateMsec = startDateMsecIteration01 + ((i-1)*14*24*60*60*1000);
+        var endDateMsec = startDateMsec + 14*24*60*60*1000 - 1;
+        if (endDateMsec > reqDateMsec) {
+            logger.info('endDateMsec > reqDateMsec, ' + ' endDateMsec:' + endDateMsec + ' reqDateMsec:' + reqDateMsec );
             return;
         }
         if (i < 10) iterationName = 'Iteration 0' + i + ' - 2017';
@@ -214,19 +219,19 @@ function createIteration(reqDate) {
         var iterationData = [
             {
                 name: 'startDate',
-                value: startDate.getFullYear() + '-' + (startDate.getMonth() + 1) + '-' + startDate.getDate()
+                value: new Date(startDateMsec)
             },
             {
                 name: 'startDateMsec',
-                value: startDate.getTime()
+                value: startDateMsec
             },
             {
                 name: 'endDate',
-                value: endDate.getFullYear() + '-' + (endDate.getMonth() + 1) + '-' + endDate.getDate()
+                value: new Date(endDateMsec)
             },
             {
                 name: 'endDateMsec',
-                value: endDate.getTime()
+                value: endDateMsec
             }
         ];
 
