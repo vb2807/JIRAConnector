@@ -17,40 +17,65 @@ block content
     table#pmstoriestable
       caption PM Stories Status
         tr
-          th.pmstorykey='PM Story'
-          th.pmstorykey='Fix Version(s)'
-          th.pmstorystatus='Status (% Accepted, % Change)'
-          th.enggstorykey='Engg StoryID'
-          th.status(colspan=4)='Status'
-          th.storypoints(colspan=4)='Story Points'
-          th.timespent='Queue Time'
-          th.timespent='Cycle Time'
+          th.pmstorykey='PM Story Details [Connectivity Investment, Fix Version, Status, Completion (%), Change (%)]'
+          th.enggstorykey='Engg Story Details [Status (Last Status), Story Points (Last Points), Queue Time, Cycle Time, JIRA Link]'
       each ComboObj in ComboObjs
-        tr
-          if ComboObj.pmstory == null
-            td.pmstorykey(rowspan=ComboObj.enggstories.length + 1)= 'null'
-            td.pmstorykey(rowspan=ComboObj.enggstories.length + 1)= 'null'
-            td.pmstorystatus(rowspan=ComboObj.enggstories.length + 1)='null'
-          else
-            td.pmstorykey(rowspan=ComboObj.enggstories.length + 1)= '[' + ComboObj.pmstory.key + '] ' + ComboObj.pmstory.summary
-            td.pmstorykey(rowspan=ComboObj.enggstories.length + 1)= ComboObj.pmstory.fixVersion
-            td.pmstorystatus(rowspan=ComboObj.enggstories.length + 1)=ComboObj.pmstory.status + ', ' + ComboObj.pmstory.percentComplete + '% (' + ComboObj.pmstory.percentChange + '%)'
-        each enggStory in ComboObj.enggstories
-          td.enggstorykey=enggStory.currentKey
-          if enggStory.statusChanged
-            td.status=enggStory.statusAtIterationEnd
-            td=' ('
-            td.statusold=enggStory.statusAtIterationStart
-            td=')'
-          else
-            td.status(colspan=4)=enggStory.statusAtIterationStart
-          if enggStory.storyPointsChanged
-            td.status=enggStory.storyPointsAtIterationEnd
-            td=' ('
-            td.statusold=enggStory.storyPointsAtIterationStart
-            td=')'
-          else
-            td.status(colspan=4)=enggStory.storyPointsAtIterationStart
-          td.timespent=enggStory.queueTime
-          td.timespent=enggStory.cycleTime
-          </tr>
+        table.comboObj
+          tr
+            td
+              table.pmstoryrow
+                tr
+                if ComboObj.pmstory == null
+                  td.red= 'No PM Story linked with these engg stories'
+                else
+                  td
+                    a(href='https://sailpoint.atlassian.net/browse/' + ComboObj.pmstory.key) #{ComboObj.pmstory.key}
+                    |   #{ComboObj.pmstory.summary}
+                tr
+                  td
+                    table
+                      tr
+                        if ComboObj.pmstory != null
+                          td='['
+                          td=ComboObj.pmstory.connectivityInvestment + ', '
+                          td=ComboObj.pmstory.fixVersion + ', '
+                          td=ComboObj.pmstory.status + ', '
+                          if ComboObj.pmstory.percentComplete == 100
+                            td.green=ComboObj.pmstory.percentComplete + ' %'
+                          else
+                            td=ComboObj.pmstory.percentComplete + ' %'
+                          td=' ('
+                          if ComboObj.pmstory.percentChange <= 0
+                            td.red=ComboObj.pmstory.percentChange + ' %'
+                          else
+                            td.yellow=ComboObj.pmstory.percentChange + ' %'
+                          td=') ]'
+            td
+              table
+                each enggStory in ComboObj.enggstories
+                  tr.linetop
+                    td=enggStory.summary
+                  tr
+                    td
+                      table
+                        tr
+                          td='['
+                          if enggStory.statusChanged
+                            td.yellow=enggStory.statusAtIterationEnd
+                            td=' ('
+                            td.strikethrough=enggStory.statusAtIterationStart
+                            td='), '
+                          else
+                            td(colspan=4)=enggStory.statusAtIterationStart + ", "
+                          if enggStory.storyPointsChanged
+                            td.yellow=enggStory.storyPointsAtIterationEnd
+                            td=' ('
+                            td.strikethrough=enggStory.storyPointsAtIterationStart
+                            td='), '
+                          else
+                            td.normal(colspan=4)=enggStory.storyPointsAtIterationStart + ", "
+                          td.normal=enggStory.queueTime + ", "
+                          td.normal=enggStory.cycleTime + ", "
+                          td
+                            a(href='https://sailpoint.atlassian.net/browse/' + enggStory.currentKey) #{enggStory.currentKey}
+                          td=']'

@@ -138,6 +138,15 @@ caption {
   width: 1200px;
   border-collapse: collapse;
 }
+table.pmstoryrow {
+  border: 0px solid #c6c7cc;
+  padding: 10px 15px;
+  text-align: left;
+  vertical-align: top;
+  margin: 5px;
+  width: 600px;
+  border-collapse: collapse;
+}
 .enggstoriestable {
   border: 1px solid #c6c7cc;
   text-align: left;
@@ -260,6 +269,47 @@ td.oldtimespent {
   margin: 0pc;
   width: 20px;
   text-decoration-line: line-through;
+}
+table.comboObj {
+  border-top: 1px solid #c6c7cc;
+  padding: 5px 5px;
+  text-align: left;
+  vertical-align: top;
+  margin: 0pc;
+}
+td.strikethrough {
+  padding: 5px 5px;
+  text-align: left;
+  vertical-align: top;
+  margin: 0pc;
+  text-decoration-line: line-through;
+}
+td.yellow {
+  padding: 5px 5px;
+  text-align: left;
+  vertical-align: top;
+  margin: 0pc;
+  background-color: #ffffb0;
+}
+td.red {
+  padding: 5px 5px;
+  text-align: left;
+  vertical-align: top;
+  margin: 0pc;
+  background-color: #ffa07a;
+}
+td.green {
+  padding: 5px 5px;
+  text-align: left;
+  vertical-align: top;
+  margin: 0pc;
+  background-color: #90ee90;
+}
+td.normal {
+  padding: 5px 5px;
+  text-align: left;
+  vertical-align: top;
+  margin: 0pc;
 }
 td.storypoints {
   border: 1px solid #c6c7cc;

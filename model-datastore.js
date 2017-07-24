@@ -215,6 +215,31 @@ function asyncFetchEvents (cb) {
     });
 }
 
+function _getPMStoryIDFromPMStoryKey(PMStoryKey, cb) {
+    const q = ds.createQuery(['PMStory'])
+        .filter('currentKey', '=', PMStoryKey);
+    ds.runQuery(q, (err, PMEntities, nextQuery) => {
+        if (err) {
+            logger.error(err);
+            return cb(err, null);
+        }
+        if (!PMEntities) {
+            logger.error('Something wrong. Could not get PMStory for PMStoryKey:' + PMStoryKey);
+            return cb('Something wrong. Could not get PMStory for PMStoryKey:' + PMStoryKey, null);
+        }
+        if (PMEntities.length > 1) {
+            logger.error('Multiple PMStories found for PMStoryKey:' + PMStoryKey);
+            return cb('Multiple PMStories found for PMStoryKey:' + PMStoryKey, null);
+        }
+        if (PMEntities.length == 0) {
+            logger.info('No PMStoryEntity yet for PMStoryKey:' + PMStoryKey + '. Need to get it from JIRA.');
+            return cb(null, null);
+        }
+        logger.debug('PMStoryID:' + PMEntities[0].key.id);
+        return cb (null, PMEntities[0].key.id);
+    });
+}
+
 function asyncFetchEnggStories (iterationName, iterationStartDateMsec, iterationEndDateMsec, cb) {
     // const PMStoryKey = ds.key(['Event', event, 'PMStories', parseInt(pmstoryid, 10)]);
     // const PMStoryKey = ds.key(['PMStories', pmstoryid]);
@@ -363,6 +388,7 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         PMStoryEntityData.totalStoriesLastIteration = 0;
         PMStoryEntityData.storyAcceptedThisIteration = 0;
         PMStoryEntityData.storyAcceptedLastIteration = 0;
+        PMStoryEntityData.connectivityInvestment = pmStoryData.connectivityInvestment;
     }
 
     logger.debug('pmStoryData:' + JSON.stringify(pmStoryData));
@@ -532,7 +558,8 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         if (PMStoryEntityData) {
             PMStoryEntityData.percentComplete = PMStoryEntityData.totalStoriesThisIteration == 0 ? 0 : parseInt(PMStoryEntityData.storyAcceptedThisIteration*100 / PMStoryEntityData.totalStoriesThisIteration, 10);
             PMStoryEntityData.percentCompleteLastIteration = PMStoryEntityData.totalStoriesLastIteration == 0 ? 0 : parseInt(PMStoryEntityData.storyAcceptedLastIteration*100 / PMStoryEntityData.totalStoriesLastIteration, 10);
-            PMStoryEntityData.percentChange = PMStoryEntityData.percentCompleteLastIteration > 0 ? '+' + PMStoryEntityData.percentCompleteLastIteration : PMStoryEntityData.percentCompleteLastIteration;
+            let percentChangeLocal = PMStoryEntityData.percentComplete - PMStoryEntityData.percentCompleteLastIteration;
+            PMStoryEntityData.percentChange = percentChangeLocal > 0 ? '+' + percentChangeLocal : percentChangeLocal;
         }
         cb(null, {'pmstory': PMStoryEntityData, 'enggstories': comboObjEnggstories});
         return;
@@ -1161,6 +1188,7 @@ module.exports = {
     copyAndDeleteEntities: _copyAndDeleteEntities,
     fetchComboObj: _fetchComboObj,
     getIterationsFromDataStore: _getIterationsFromDataStore,
+    getPMStoryIDFromPMStoryKey: _getPMStoryIDFromPMStoryKey,
     ds,
     twoWksInMsec
 };

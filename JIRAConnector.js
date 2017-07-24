@@ -19,7 +19,7 @@ const tsFormat = () => (new Date()).toString();
 const maxResults = 50;
 const waitTimeForRetry = 1000;
 const frequencyprocessSearchResults = 60000;
-const AllJIRAProjects = 'CIQ, CDN, CONBOGIBEE, CONMF, CONHOWRAH, CONVASHI, CONUMSHIAN, CONPAMBAN, CONNAMDANG, CONHELIX, CONELLIS, CONSEALINK, CONJADUKAT, CONCHENAB';
+const AllJIRAProjects = 'CONPM, CONBOGIBEE, CONMF, CONHOWRAH, CONVASHI, CONUMSHIAN, CONPAMBAN, CONNAMDANG, CONHELIX, CONELLIS, CONSEALINK, CONJADUKAT, CONCHENAB';
 
 const logger = new (winston.Logger)({
     transports: [
@@ -260,16 +260,19 @@ function createEventEntities() {
 var processSearchResults = function processSearchResults(JIRAProjects, cursor, updateTime, deltaSince) {
     var JQLString = "project in (" + JIRAProjects + ") and  issuetype in (Story, Epic, MRG)"
     // var JQLString = "key in (CONNAMDANG-583)";
-    // var JQLString = "key in (CONHOWRAH-139)";
+    // var JQLString = "key in (CONPAMBAN-550)";
+
     if (deltaSince) {
         var deltaSinceDateObj = new Date(deltaSince);
         JQLString = JQLString + "  and updatedDate >= '" + deltaSinceDateObj.getFullYear() + "-" + (deltaSinceDateObj.getMonth() + 1) + "-" + deltaSinceDateObj.getDate() + " " + deltaSinceDateObj.getHours() + ":" + deltaSinceDateObj.getMinutes() + "'";
     }
+
     logger.info('JQLString:' + JQLString);
     jira.search.search({
         jql: JQLString,
         startAt: cursor,
         maxResults: maxResults,
+
         fields: [
             "summary",
             "status",
@@ -280,11 +283,13 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
             "timespent",
             "customfield_10016", //Sprint field in JIRA
             "customfield_10109",
+            "customfield_10017", // Epic link
             "fixVersions",
             "assignee",
             "customfield_14407",
             "components"
         ],
+
         expand: [
 //            "operations.fields",
 //            "versionedRepresentations.fields",
@@ -318,7 +323,7 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
                         var PMStoryFlag = false;
                         var scrum = specificIssue.key.slice(0, specificIssue.key.indexOf("-"));
                         // let's check if it's a PMStory
-                        if (scrum == 'CIQ' || scrum == 'CDN' || scrum == 'CONPM' || scrum == 'CON') PMStoryFlag = true;
+                        if (scrum == 'CONPM' || scrum == 'CON') PMStoryFlag = true;
                         if (PMStoryFlag) {
                             /*
                             if (specificIssue.fields.assignee == null) {
@@ -392,12 +397,20 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
                             // let's find its parent PMStory
                             getModel().read('EnggStory', specificIssue.id, (err, curentEnggEntity) => {
                                 if (err) {
-                                    logger.error('Error in reading curentEnggEntity. key' + specificIssue.key);
+                                    logger.error('Error in reading curentEnggEntity. key:' + specificIssue.key);
                                     logger.error(err);
                                     return;
                                 }
-                                issueCounter++;
-                                upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateTime, scrum, searchResult, cursor, deltaSince, JIRAProjects);
+                                getPMStoryKey(specificIssue, (err, PMStoryID, PMStoryKey) => {
+                                    if (err) {
+                                        logger.error('Error in reading PMStoryID and PMStoryKey. key:' + specificIssue.key);
+                                        logger.error(err);
+                                        return;
+                                    }
+                                    logger.debug('PMStoryID:' + PMStoryID + ', PMStoryKey:' + PMStoryKey);
+                                    issueCounter++;
+                                    upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateTime, scrum, searchResult, cursor, deltaSince, JIRAProjects, PMStoryID, PMStoryKey);
+                                });
                             });
                         }
                     }
@@ -408,18 +421,61 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
     });
 }
 
-function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateTime, scrum, searchResult, cursor, deltaSince, JIRAProjects) {
+function getPMStoryKeyfromJIRA (PMStoryKey, cb) {
+    jira.search.search({
+        jql: 'key in (' + PMStoryKey + ')',
+        startAt: 0,
+        maxResults: maxResults,
+        fields: [],
+        expand: []
+    }, function (error, searchResult) {
+        if (error) {
+            logger.error('jira.search.search' + 'key in (' + PMStoryKey + ')' + 'threw an error. Retrying after 5 secs:');
+            logger.error(error);
+            // retry after 5 secs for 5 times
+            setTimeout(getPMStoryKeyfromJIRA, waitTimeForRetry, PMStoryKey, cb);
+        }
+        logger.debug('getPMStoryKeyfromJIRA: PMStoryID:' + searchResult.issues[0].id + ' for PMStoryKey:' + PMStoryKey);
+        return cb (null, searchResult.issues[0].id);
+    });
+}
+
+function getPMStoryKey(specificIssue, cb) {
     var PMStoryKey = null;
     var PMStoryID = null;
-    for (var indexLink = 0; indexLink < specificIssue.fields.issuelinks.length; indexLink++) {
-        var specificIssueLink = specificIssue.fields.issuelinks[indexLink];
-        if (specificIssueLink.inwardIssue && (specificIssueLink.type.inward.toLowerCase() == 'is caused by' || specificIssueLink.type.inward.toLowerCase() == 'relates to')) {
-            PMStoryKey = specificIssueLink.inwardIssue.key;
-            PMStoryID = specificIssueLink.inwardIssue.id;
-            break;
-        }
-    }
+    if (specificIssue.fields.customfield_10017) {
+        PMStoryKey = specificIssue.fields.customfield_10017;
+        getModel().getPMStoryIDFromPMStoryKey(PMStoryKey, (err, PMStoryID) => {
+            if (err) {
+                logger.error(err);
+                return cb (err, null);
+            }
+            if (!PMStoryID) {
+                // connect to JIRA to get the PMStoryKey
+                logger.debug('PMStoryID is null for PMStoryKey:' + PMStoryKey);
+                getPMStoryKeyfromJIRA(PMStoryKey, (err, PMStoryID) => {
+                    if (err) return cb (err, null);
+                    else return cb (null, PMStoryID, PMStoryKey);
+                });
 
+            }
+            else return cb (null, PMStoryID, PMStoryKey);
+        });
+    }
+    else {
+        for (var indexLink = 0; indexLink < specificIssue.fields.issuelinks.length; indexLink++) {
+            var specificIssueLink = specificIssue.fields.issuelinks[indexLink];
+            if (specificIssueLink.inwardIssue && (specificIssueLink.type.inward.toLowerCase() == 'is caused by' || specificIssueLink.type.inward.toLowerCase() == 'relates to')) {
+                PMStoryKey = specificIssueLink.inwardIssue.key;
+                PMStoryID = specificIssueLink.inwardIssue.id;
+                return cb(null, PMStoryID, PMStoryKey);
+            }
+        }
+        return cb(null, null, null);
+    }
+}
+
+function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateTime, scrum, searchResult, cursor, deltaSince, JIRAProjects, PMStoryID, PMStoryKey) {
     // let's get its changelog
     var arrayHistories = specificIssue.changelog.histories;
     var acceptedDate = null;
