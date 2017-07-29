@@ -240,6 +240,116 @@ function _getPMStoryIDFromPMStoryKey(PMStoryKey, cb) {
     });
 }
 
+function getEnggStoriesOfIteration(iterationName, cb) {
+    const q = ds.createQuery(['EnggStory'])
+        .filter('sprintsTravelled', '=', iterationName);
+
+    ds.runQuery(q, (err, EnggEntities, nextQuery) => {
+        if (err) {
+            logger.error(err);
+            return cb(err, null);
+        }
+        if (!EnggEntities) {
+            return cb('Something wrong. Could not get enggStories changed in iteration: ' + iterationName, null);
+        }
+        return cb (null, EnggEntities);
+    });
+}
+
+function asyncFetchEnggStoriesForADuration (iterations, cb) {
+    var allEnggEntities = [];
+    var count = 0;
+    logger.debug('asyncFetchEnggStoriesForADuration: iterations:' + JSON.stringify(iterations));
+    if (!iterations || iterations.length == 0) {
+        logger.info('asyncFetchEnggStoriesForADuration: iterations object is either null or empty: ' + iterations);
+        return cb('asyncFetchEnggStoriesForADuration: iterations object is either null or empty: ' + iterations, null);
+    }
+
+    logger.debug('iterations.length:' + iterations.length);
+    for (var iterationCount = 0; iterationCount < iterations.length; iterationCount++) {
+        getEnggStoriesOfIteration(iterations[iterationCount], (err, enggEntities) => {
+            if (err) logger.error(err);
+            else allEnggEntities = allEnggEntities.concat(enggEntities);
+            logger.info('asyncFetchEnggStoriesForADuration: enggEntities: ' + JSON.stringify(enggEntities));
+            logger.info('asyncFetchEnggStoriesForADuration: allEnggEntities: ' + JSON.stringify(allEnggEntities));
+            count ++;
+            if (count == iterations.length) cb(null, allEnggEntities);
+        });
+    }
+}
+
+function processEnggStoriesForADuration (EnggEntities, iterationStartDateMsec, iterationEndDateMsec, cb) {
+
+    if (EnggEntities) {
+            // logger.debug('entities:' + JSON.stringify(entities));
+            // lets iteration thru all entities and get their PMStory Ids so we can query all PMStory Entities also
+            var keys = [];
+            var EnggStoriesOfAPMStory = [];
+            var EnggStoriesWithNullPMStory = [];
+            var uniquePMStories =  [];
+            var comboObj = [];
+            logger.debug('processEnggStoriesForADuration:EnggEntities:' + JSON.stringify(EnggEntities));
+            logger.debug('processEnggStoriesForADuration:EnggEntities.length:' + EnggEntities.length);
+            for (var k = 0; k < EnggEntities.length; k++) {
+                logger.debug('k:' + k + ', EnggEntities[k]:' + JSON.stringify(EnggEntities[k]));
+                logger.debug('EnggEntities[k].key.id:' + EnggEntities[k].key.id);
+                logger.debug('EnggEntities[k].data.PMStoryID:' + EnggEntities[k].data.PMStoryID);
+                if (!EnggEntities[k].data.PMStoryID) EnggStoriesWithNullPMStory.push(EnggEntities[k]);
+                else if (uniquePMStories.indexOf(EnggEntities[k].data.PMStoryID) == -1) {
+                    uniquePMStories.push(EnggEntities[k].data.PMStoryID);
+                    keys.push(ds.key(['PMStory', EnggEntities[k].data.PMStoryID]));
+                }
+            }
+            ds.get(keys, (err, PMEntities) => {
+                if (err) {
+                    logger.error(err);
+                    logger.debug('asyncFetchEnggStories:count:' + count);
+                    return cb (err);
+                }
+                else {
+                    var count = PMEntities.length;
+                    if (count != keys.length) {
+                        logger.info('Some PMStory Entities not present in Google Datastore.')
+                        for (var k=0; k < keys.length; k++) {
+                            var flagKeyFound = false;
+                            for (var z=0; z < PMEntities.length; z++) {
+                                if (keys[k].id == PMEntities[z].key.id) {
+                                    flagKeyFound = true;
+                                    break;
+                                }
+                            }
+                            if (!flagKeyFound) logger.error ('PMEntity not found for PMStoryID:' + keys[k].id);
+                        }
+                    }
+                    if (EnggStoriesWithNullPMStory.length > 0) {
+                        PMEntities.push(null);
+                        count ++;
+                        logger.debug('EnggStoriesWithNullPMStory:' + JSON.stringify(EnggStoriesWithNullPMStory));
+                    }
+
+                    PMEntities.forEach(function (PMEntity) {
+                            fetchEnggStoriesOfPMStory(iterationStartDateMsec, iterationEndDateMsec, PMEntity, EnggStoriesWithNullPMStory, (err, specificComboObj) => {
+                                if (err) {
+                                    logger.error(err);
+                                    count --;
+                                    logger.debug('separate:asyncFetchEnggStories:count:' + count);
+                                    if (count == 0) return cb(null, comboObj);
+                                }
+                                else {
+                                    comboObj.push(specificComboObj);
+                                    count --;
+                                    logger.debug('separate:asyncFetchEnggStories:count:' + count);
+                                    if (count == 0) return cb(null, comboObj);
+                                }
+                            })
+                        }
+                    );
+                }
+            });
+        }
+}
+
+
 function asyncFetchEnggStories (iterationName, iterationStartDateMsec, iterationEndDateMsec, cb) {
     // const PMStoryKey = ds.key(['Event', event, 'PMStories', parseInt(pmstoryid, 10)]);
     // const PMStoryKey = ds.key(['PMStories', pmstoryid]);
@@ -565,7 +675,7 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         return;
     }
 }
-
+/*
 function _fetchComboObj (iterationName, cb) {
     _getIterationDates(iterationName, (err, iterationStartDate, iterationStartDateMsec, iterationEndDate, iterationEndDateMsec) => {
         asyncFetchEnggStories(iterationName, iterationStartDateMsec, iterationEndDateMsec, (err, comboObj) => {
@@ -574,6 +684,205 @@ function _fetchComboObj (iterationName, cb) {
             cb(err, comboObj);
             return;
         });
+    });
+}
+*/
+function _fetchComboObj (reportType, cb) {
+    _getIterationsAndStartEndDates(reportType, (err, iterations, startDateMsec, endDateMsec) => {
+        asyncFetchEnggStoriesForADuration (iterations, (err, enggEntitiesChangedinIterations) => {
+            if (err) {
+                logger.error(err);
+                return cb (err, null);
+            }
+            else {
+                logger.debug('asyncFetchEnggStoriesForADuration complete. enggStories:' + JSON.stringify(enggEntitiesChangedinIterations))
+                processEnggStoriesForADuration(enggEntitiesChangedinIterations, startDateMsec, endDateMsec, (err, comboObj) => {
+                    if (err) {
+                        logger.error('asyncFetchEnggStoriesForADuration: Error: ' + err);
+                        return cb (err, null);
+                    }
+                    else return cb (null, comboObj);
+                });
+            }
+        });
+    });
+}
+
+function getQuarterDates(qtr, cb) {
+    var now = new Date();
+    var year = now.getFullYear();
+    var startOfQ1 = new Date(year + '-Jan-1');
+    var startOfQ2 = new Date(year + '-Apr-1');
+    var startOfQ3 = new Date(year + '-Jul-1');
+    var startOfQ4 = new Date(year + '-Oct-1');
+    var startDate =  null;
+    var endDate = null;
+
+    if (qtr == 'q1') {
+        if (now > startOfQ1) {
+            startDate = startOfQ1;
+            endDate = new Date(year + '-Mar-31');
+        }
+        else {
+            startDate = new Date(year - 1 + '-Jan-1');
+            endDate = new Date(year - 1 + '-Mar-31');
+        }
+        return cb (startDate.getTime(), endDate.getTime());
+    }
+
+    if (qtr == 'q2') {
+        if (now > startOfQ2) {
+            startDate = startOfQ2;
+            endDate = new Date(year + '-Jun-30');
+        }
+        else {
+            startDate = new Date(year - 1 + '-Apr-1');
+            endDate = new Date(year - 1 + '-Jun-30');
+        }
+        return cb (startDate.getTime(), endDate.getTime());
+    }
+
+    if (qtr == 'q3') {
+        if (now > startOfQ3) {
+            startDate = startOfQ3;
+            endDate = new Date(year + '-Sep-30');
+        }
+        else {
+            startDate = new Date(year - 1 + '-Jul-1');
+            endDate = new Date(year - 1 + '-Sep-30');
+        }
+        return cb (startDate.getTime(), endDate.getTime());
+    }
+
+    if (qtr == 'q4') {
+        if (now > startOfQ4) {
+            startDate = startOfQ4;
+            endDate = new Date(year + '-Dec-31');
+        }
+        else {
+            startDate = new Date(year - 1 + '-Oct-1');
+            endDate = new Date(year - 1 + '-Dec-31');
+        }
+        return cb (startDate.getTime(), endDate.getTime());
+    }
+}
+
+function _getIterationsAndStartEndDates (reportType, cb) {
+    if (reportType.startsWith('iteration')) {
+        _getIterationNameAndDates(reportType, (err, iterationName, startDateMsec, endDateMsec) => {
+            if (err) return cb (err, null, null, null);
+            else return cb(null, iterationName, startDateMsec, endDateMsec);
+        });
+    }
+    if (reportType.startsWith('q')) {
+        getQuarterDates(reportType, (startDateMsec, endDateMsec) => {
+            logger.error('startDateMsec:' + startDateMsec);
+            logger.error('endDateMsec:' + endDateMsec);
+            getIterationsWithinDates(startDateMsec, endDateMsec, (err, iterations) => {
+                if (err) {
+                    logger.error('Error in obtaining iterations in a quarter:' + err);
+                    return cb (err, null, null, null);
+                }
+                else {
+                    var iterationNames = [];
+                    for (var j = 0; j < iterations.length; j++) iterationNames.push(iterations[j].key.name);
+                    return cb (null, iterationNames, iterations[0].data.startDateMsec, iterations[iterations.length - 1].data.endDateMsec);
+                }
+            });
+        });
+    }
+}
+
+function _getIterationNameAndDates(simplifiedName, cb) {
+    var howFarBack = simplifiedName.split('-');
+    var now = new Date().getTime();
+    getIterationsWithinDates(now, now, (err, iterations) => {
+        if (!iterations ||iterations.length == 0) return cb ('No iteration found', null, null, null);
+        if (iterations.length > 1) return cb ('More than one iterations found', null, null, null);
+        var iterationName = iterations[0].key.name;
+        var iterationNameArray = iterationName.split(' ');
+        var iterationNumber = null;
+        var newIterationNumber = null;
+        var newIterationName = null;
+        if (iterationNameArray[0] == 'CON') {
+            iterationNumber = iterationNameArray[3];
+            if (howFarBack.length == 1) newIterationNumber = iterationNumber;
+            else newIterationNumber = iterationNumber - howFarBack[1];
+            if (newIterationNumber < 1) return cb ('Invalid iteration', null, null, null);
+            if (newIterationNumber <= 9) newIterationName = 'CON - Iteration 0' + newIterationNumber;
+            else newIterationName = 'CON - Iteration ' + newIterationNumber;
+        }
+        else {
+            iterationNumber = iterationNameArray[1];
+            if (howFarBack.length == 1) newIterationNumber = iterationNumber;
+            else newIterationNumber = iterationNumber - howFarBack[1];
+            if (newIterationNumber < 1) return cb ('Invalid iteration', null, null, null);
+            if (newIterationNumber <= 9) newIterationName = iterationNameArray[0] + ' ' + '0' + newIterationNumber + ' - ' + iterationNameArray[3];
+            else newIterationName = iterationNameArray[0] + ' ' + newIterationNumber + ' - ' + iterationNameArray[3];
+        }
+        _getIterationDates(newIterationName, (err, startDate, startDateMsec, endDate, endDateMsec) => {
+            if (err) return cb (err, null, null, null);
+            else return cb (null, [newIterationName], startDateMsec, endDateMsec);
+        });
+    });
+}
+
+function getIterationsWithinDates(startDateMsec, endDateMsec, cb) {
+    getIterationsEndingAfterASpecificTime(startDateMsec, (err, iterationsSuperSet) => {
+        if (err) return cb (err, null);
+        getIterationsStartedAfterASpecificTime(endDateMsec, (err, iterationSubSet) => {
+            if (err) return cb (err, null);
+            diffIterations(iterationsSuperSet, iterationSubSet, (difference) => {
+                return cb (null, difference);
+            });
+        });
+    });
+}
+
+function diffIterations (iterationsSuperSet, iterationsSubSet, cb) {
+    var difference = [];
+    for (var i = 0; i < iterationsSuperSet.length; i++) {
+        var flagFound = false;
+        for (var j = 0; j < iterationsSubSet.length; j++) {
+            if (iterationsSuperSet[i].key.name == iterationsSubSet[j].key.name) {
+                flagFound = true;
+                break;
+            }
+        }
+        if (!flagFound) difference.push(iterationsSuperSet[i]);
+    }
+    return cb (difference);
+}
+
+function getIterationsStartedAfterASpecificTime(specificTimeMsec, cb) {
+    const q = ds.createQuery(['Iteration'])
+        .filter('startDateMsec', '>', specificTimeMsec);
+
+    ds.runQuery(q, (err, iterations, nextQuery) => {
+        if (err) {
+            logger.error(err);
+            return cb(err, null);
+        }
+        if (!iterations) {
+            return cb('Something wrong. Could not get Iteration', null);
+        }
+        return cb (null, iterations);
+    });
+}
+
+function getIterationsEndingAfterASpecificTime(specificTimeMsec, cb) {
+    const q = ds.createQuery(['Iteration'])
+        .filter('endDateMsec', '>', specificTimeMsec);
+
+    ds.runQuery(q, (err, iterations, nextQuery) => {
+        if (err) {
+            logger.error(err);
+            return cb(err, null);
+        }
+        if (!iterations) {
+            return cb('Something wrong. Could not get Iteration', null);
+        }
+        return cb (null, iterations);
     });
 }
 
@@ -1190,6 +1499,8 @@ module.exports = {
     getIterationsFromDataStore: _getIterationsFromDataStore,
     getPMStoryIDFromPMStoryKey: _getPMStoryIDFromPMStoryKey,
     ds,
+    getIterationNameAndDates: _getIterationNameAndDates,
+    getIterationsAndStartEndDates: _getIterationsAndStartEndDates,
     twoWksInMsec
 };
 // [END exports]

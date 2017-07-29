@@ -174,7 +174,19 @@ process.argv.forEach(function (val, index, array) {
         _copyWeeklyData();
         return;
     }
+    if (val == 'testgetIterationsAndStartEndDates') {
+        testgetIterationsAndStartEndDates(array[index + 1]);
+        return;
+    }
 });
+
+function testgetIterationsAndStartEndDates(reportType) {
+    getModel().getIterationsAndStartEndDates(reportType, (err, iterations, startDate, endDate) => {
+        console.log('iterations:' + JSON.stringify(iterations));
+        console.log('startDate:' + startDate);
+        console.log('endDate:' + endDate);
+    });
+}
 
 function _copyWeeklyData() {
     var rule = new schedule.RecurrenceRule();

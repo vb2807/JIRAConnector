@@ -39,8 +39,9 @@ router.use((req, res, next) => {
  * Display a page of books (up to ten at a time).
  */
 router.get('/groominghealth', (req, res, next) => {
-  console.log('req.params.event:' + req.params.event);
-  getModel().fetchComboObj('Iteration 14 - 2017', (err, comboObjs) => {
+  console.log('req.query.type:' + req.query.type);
+  // console.log('req.query.which:' + req.query.which);
+  getModel().fetchComboObj(req.query.type, (err, comboObjs) => {
     if (err) {
       console.log(err);
       next(err);
