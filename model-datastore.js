@@ -270,8 +270,6 @@ function asyncFetchEnggStoriesForADuration (iterations, cb) {
         getEnggStoriesOfIteration(iterations[iterationCount], (err, enggEntities) => {
             if (err) logger.error(err);
             else allEnggEntities = allEnggEntities.concat(enggEntities);
-            logger.info('asyncFetchEnggStoriesForADuration: enggEntities: ' + JSON.stringify(enggEntities));
-            logger.info('asyncFetchEnggStoriesForADuration: allEnggEntities: ' + JSON.stringify(allEnggEntities));
             count ++;
             if (count == iterations.length) cb(null, allEnggEntities);
         });
@@ -418,22 +416,21 @@ function asyncFetchEnggStories (iterationName, iterationStartDateMsec, iteration
                     }
 
                     PMEntities.forEach(function (PMEntity) {
-                            fetchEnggStoriesOfPMStory(iterationStartDateMsec, iterationEndDateMsec, PMEntity, EnggStoriesWithNullPMStory, (err, specificComboObj) => {
-                                if (err) {
-                                    logger.error(err);
-                                    count --;
-                                    logger.debug('separate:asyncFetchEnggStories:count:' + count);
-                                    if (count == 0) return cb(null, comboObj);
-                                }
-                                else {
-                                    comboObj.push(specificComboObj);
-                                    count --;
-                                    logger.debug('separate:asyncFetchEnggStories:count:' + count);
-                                    if (count == 0) return cb(null, comboObj);
-                                }
-                            })
-                        }
-                    );
+                        fetchEnggStoriesOfPMStory(iterationStartDateMsec, iterationEndDateMsec, PMEntity, EnggStoriesWithNullPMStory, (err, specificComboObj) => {
+                            if (err) {
+                                logger.error(err);
+                                count --;
+                                logger.debug('separate:asyncFetchEnggStories:count:' + count);
+                                if (count == 0) return cb(null, comboObj);
+                            }
+                            else {
+                                comboObj.push(specificComboObj);
+                                count --;
+                                logger.debug('separate:asyncFetchEnggStories:count:' + count);
+                                if (count == 0) return cb(null, comboObj);
+                            }
+                        })
+                    });
                 }
             });
         }

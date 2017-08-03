@@ -69,7 +69,7 @@ router.get('/groominghealth', (req, res, next) => {
 
         });
 
-        res.render('groominghealth.jade', {
+        res.render('iterationstatus.jade', {
             ComboObjs: comboObjs
         });
     }
