@@ -18,11 +18,62 @@ html(lang="en")
     meta(charset='utf-8')
     meta(name="viewport", content="width=device-width, initial-scale=1")
     link(rel="stylesheet", type="text/css", href="/stylesheets/style.css")
+    // link(rel="stylesheet", type="text/css", href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css")
   body
     .navbar.navbar-default
       .container
         .navbar-header
-          .navbar-brand
+          .navbar-brand PM Stories Status
 
-    .container
-      block content
+        collapse.navbar-collapse
+          ul.nav.navbar-nav
+            li.dropdown.btn.btn-default
+              span.glyphicon.glyphicon-th-list
+                |  Current Iteration (n)
+                span.caret
+              ul.dropdown-menu.dropdown-toggle(data-toggle="dropdown")
+                li
+                  a(href="/groominghealth?type=iteration") Overall Changes
+                li
+                  a(href="/groominghealth?type=iteration") Iteration Changes
+                li
+                  a(href="/groominghealth?type=iteration") Investment Buckets
+
+            li.dropdown.btn.btn-default
+              span.glyphicon.glyphicon-th-list
+                |  Last Iteration (n - 1)
+                span.caret
+              ul.dropdown-menu.dropdown-toggle(data-toggle="dropdown")
+                li
+                  a(href="/groominghealth?type=iteration-1") Overall Changes
+                li
+                  a(href="/groominghealth?type=iteration-1") Iteration Changes
+                li
+                  a(href="/groominghealth?type=iteration-1") Investment Buckets
+
+            li.dropdown.btn.btn-default
+              span.glyphicon.glyphicon-th-list
+                |  Iteration 'n-2'
+                span.caret
+              ul.dropdown-menu.dropdown-toggle(data-toggle="dropdown")
+                li
+                  a(href="/groominghealth?type=iteration-2") Overall Changes
+                li
+                  a(href="/groominghealth?type=iteration-2") Iteration Changes
+                li
+                  a(href="/groominghealth?type=iteration-2") Investment Buckets
+
+            li.dropdown.btn.btn-default
+              span.glyphicon.glyphicon-th-list
+                |  Iteration 'n-3'
+                span.caret
+              ul.dropdown-menu.dropdown-toggle(data-toggle="dropdown")
+                li
+                  a(href="/groominghealth?type=iteration-3") Overall Changes
+                li
+                  a(href="/groominghealth?type=iteration-3") Iteration Changes
+                li
+                  a(href="/groominghealth?type=iteration-3") Investment Buckets
+
+  .container
+    block content

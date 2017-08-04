@@ -14,57 +14,55 @@
 extends ./base.jade
 
 block content
-    h1 PM Stories Status
-    div.afterTitle
-      each ComboObj in ComboObjs
-        br
-        div.afterTitle
-          br
-          div.badgePM
-            if ComboObj.pmstory == null
-              span 'No PM Story linked with these engg stories'
+    each ComboObj in ComboObjs
+      div
+        div.badgePM
+          if ComboObj.pmstory == null
+            span 'No PM Story linked with these engg stories'
+          else
+            a(href='https://sailpoint.atlassian.net/browse/' + ComboObj.pmstory.key) #{ComboObj.pmstory.key}
+            |   #{ComboObj.pmstory.summary}
+            span  [
+            span #{ComboObj.pmstory.connectivityInvestment},
+            span  #{ComboObj.pmstory.fixVersion},
+            span  #{ComboObj.pmstory.status},
+            if ComboObj.pmstory.percentComplete == 100
+              span.green  #{ComboObj.pmstory.percentComplete} %
             else
-              a(href='https://sailpoint.atlassian.net/browse/' + ComboObj.pmstory.key) #{ComboObj.pmstory.key}
-              |   #{ComboObj.pmstory.summary}
-              span  [
-              span #{ComboObj.pmstory.connectivityInvestment},
-              span  #{ComboObj.pmstory.fixVersion},
-              span  #{ComboObj.pmstory.status},
-              if ComboObj.pmstory.percentComplete == 100
-                span.green  #{ComboObj.pmstory.percentComplete} %
+              span  #{ComboObj.pmstory.percentComplete} %
+            span  (
+            if ComboObj.pmstory.percentChange <= 0
+              span.red #{ComboObj.pmstory.percentChange} %
+            else
+              span #{ComboObj.pmstory.percentChange} %
+            span )]
+        each enggStory in ComboObj.enggstories
+          br
+          div.badgeEngg
+            span #{enggStory.summary}
+            span  [
+              if enggStory.statusChanged
+                span.yellow #{enggStory.statusAtIterationEnd}
+                span  (
+                span.strikethrough #{enggStory.statusAtIterationStart}
+                span ),
               else
-                span  #{ComboObj.pmstory.percentComplete} %
-              span  (
-              if ComboObj.pmstory.percentChange <= 0
-                span.red #{ComboObj.pmstory.percentChange} %
+                span #{enggStory.statusAtIterationStart},
+              span  Story Points:
+              if enggStory.storyPointsChanged
+                span  #{enggStory.storyPointsAtIterationEnd}
+                span  (
+                span #{enggStory.storyPointsAtIterationStart}
+                span ),
               else
-                span #{ComboObj.pmstory.percentChange} %
-              span )]
-          each enggStory in ComboObj.enggstories
-            br
-            div.badgeEngg
-              span #{enggStory.summary}
-              span  [
-                if enggStory.statusChanged
-                  span.yellow #{enggStory.statusAtIterationEnd}
-                  span  (
-                  span.strikethrough #{enggStory.statusAtIterationStart}
-                  span ),
-                else
-                  span #{enggStory.statusAtIterationStart},
-                span  Story Points:
-                if enggStory.storyPointsChanged
-                  span  #{enggStory.storyPointsAtIterationEnd}
-                  span  (
-                  span #{enggStory.storyPointsAtIterationStart}
-                  span ),
-                else
-                  span  #{enggStory.storyPointsAtIterationStart},
-                span  Queue Time:
-                span  #{enggStory.queueTime},
-                span  Cycle Time:
-                span  #{enggStory.cycleTime},
-                span
-                span
-                  a(href='https://sailpoint.atlassian.net/browse/' + enggStory.currentKey) #{enggStory.currentKey}
-                span ]
+                span  #{enggStory.storyPointsAtIterationStart},
+              span  Queue Time:
+              span  #{enggStory.queueTime},
+              span  Cycle Time:
+              span  #{enggStory.cycleTime},
+              span
+              span
+                a(href='https://sailpoint.atlassian.net/browse/' + enggStory.currentKey) #{enggStory.currentKey}
+              span ]
+      br
+      br
