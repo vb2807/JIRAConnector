@@ -535,7 +535,9 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
         }
     }
     sprintHistory.push(JSON.stringify([createDate, createDateMsec, currentSprintsStrArray]));
-    var firstSprint = currentSprintsStrArray;
+
+    var firstSprint = null;
+    if (currentSprintsStrArray && (currentSprintsStrArray.join().startsWith('CON - Iteration') || currentSprintsStrArray.join().startsWith('Iteration'))) firstSprint = currentSprintsStrArray.join();
 
     // now let's iterate thru history, and shift data if we find something
     var indexHistories = arrayHistories.length;
@@ -563,7 +565,9 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
                 let lastItemSprintHistory = JSON.parse(sprintHistory.pop());
                 sprintHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, lastItemSprintHistory[2]]));
                 sprintHistory.push(JSON.stringify([lastItemSprintHistory[0], lastItemSprintHistory[1], historyItem.fromString]));
-                firstSprint = (historyItem.fromString != null ? historyItem.fromString : historyItem.toString);
+                if (historyItem.fromString != null && (historyItem.fromString.startsWith('CON - Iteration') || historyItem.fromString.startsWith('Iteration'))) firstSprint = historyItem.fromString;
+                else if (historyItem.toString.startsWith('CON - Iteration') || historyItem.toString.startsWith('Iteration')) firstSprint = historyItem.toString;
+                // firstSprint = (historyItem.fromString != null ? historyItem.fromString : historyItem.toString);
                 // let's see if the historyItem.fromString has two sprints, if so then break it into two and store in Sprints travelled
                 if(historyItem.fromString != null) {
                     logger.debug('historyItem.fromString:' + historyItem.fromString);

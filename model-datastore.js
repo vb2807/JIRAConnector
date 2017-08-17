@@ -25,6 +25,9 @@ const config = require('./config');
 const twoWksInMsec = 14*24*60*60*1000;
 const oneDayInMsec = 24*60*60*1000;
 const waitTimeForRetry = 5*1000; //5 seconds
+const AllStories = 1;
+const OnlyPickedUpInIteration = 2;
+const OnlyAcceptedInIteration = 3;
 
 // [START config]
 const ds = Datastore({
@@ -347,7 +350,179 @@ function processEnggStoriesForADuration (EnggEntities, iterationStartDateMsec, i
         }
 }
 
+function processOnlyPickedUpEnggStoriesForADuration (EnggEntities, iterationStartDateMsec, iterationEndDateMsec, flagOnlyEnggStoriesPickedUpInIteration, cb) {
 
+    if (EnggEntities) {
+        // logger.debug('entities:' + JSON.stringify(entities));
+        // lets iteration thru all entities and get their PMStory Ids so we can query all PMStory Entities also
+        var keys = [];
+        var EnggStoriesOfAPMStory = [];
+        var EnggStoriesWithNullPMStory = [];
+        var CurrentKeyEnggStoriesWithNullPMStory = [];
+        var uniquePMStories =  [];
+        var comboObj = null;
+        var scrums = null;
+        var connectivityInvestmentBuckets = null;
+        var connectivityInvestmentStoryPoints = null;
+
+        logger.debug('processEnggStoriesForADuration:EnggEntities:' + JSON.stringify(EnggEntities));
+        logger.debug('processEnggStoriesForADuration:EnggEntities.length:' + EnggEntities.length);
+        for (var k = 0; k < EnggEntities.length; k++) {
+            logger.debug('k:' + k + ', EnggEntities[k]:' + JSON.stringify(EnggEntities[k]));
+            logger.debug('EnggEntities[k].key.id:' + EnggEntities[k].key.id);
+            logger.debug('EnggEntities[k].data.PMStoryID:' + EnggEntities[k].data.PMStoryID);
+            if (!EnggEntities[k].data.PMStoryID) {
+                EnggStoriesWithNullPMStory.push(EnggEntities[k]);
+                CurrentKeyEnggStoriesWithNullPMStory.push(EnggEntities[k].data.currentKey);
+            }
+            else {
+                var indexOfPMStoryID = uniquePMStories.indexOf(EnggEntities[k].data.PMStoryID);
+                if (indexOfPMStoryID == -1) {
+                    EnggStoriesOfAPMStory.push([EnggEntities[k].data.currentKey]);
+                    uniquePMStories.push(EnggEntities[k].data.PMStoryID);
+                    keys.push(ds.key(['PMStory', EnggEntities[k].data.PMStoryID]));
+                }
+                else {
+                    logger.debug('EnggStoriesOfAPMStory[indexOfPMStoryID]:' + EnggStoriesOfAPMStory[indexOfPMStoryID]);
+                    EnggStoriesOfAPMStory[indexOfPMStoryID].push(EnggEntities[k].data.currentKey);
+
+                    // let currentEnggStoriesOfAPMStoryArray = EnggStoriesOfAPMStory[indexOfPMStoryID];
+                    /*
+                    for (let x = 0; x < EnggStoriesOfAPMStory[indexOfPMStoryID].length; x++) {
+                        if (EnggEntities[k].data.currentKey < (EnggStoriesOfAPMStory[indexOfPMStoryID])[x].data.currentKey) {
+                            EnggStoriesOfAPMStory[indexOfPMStoryID].splice(x, 0, EnggEntities[k]);
+                            break;
+                        }
+                    }
+                    */
+
+                }
+            }
+        }
+        ds.get(keys, (err, PMEntities) => {
+            if (err) {
+                logger.error(err);
+                logger.debug('asyncFetchEnggStories:count:' + count);
+                return cb (err);
+            }
+            else {
+                var count = PMEntities.length;
+                if (count != keys.length) {
+                    logger.info('Some PMStory Entities not present in Google Datastore.')
+                    for (var k=0; k < keys.length; k++) {
+                        var flagKeyFound = false;
+                        for (var z=0; z < PMEntities.length; z++) {
+                            if (keys[k].id == PMEntities[z].key.id) {
+                                flagKeyFound = true;
+                                break;
+                            }
+                        }
+                        if (!flagKeyFound) logger.error ('PMEntity not found for PMStoryID:' + keys[k].id);
+                    }
+                }
+                if (EnggStoriesWithNullPMStory.length > 0) {
+                    // PMEntities.push(null);
+                    PMEntities.splice(0, 0, null);
+                    count ++;
+                    logger.debug('EnggStoriesWithNullPMStory:' + JSON.stringify(EnggStoriesWithNullPMStory));
+                }
+
+                PMEntities.forEach(function (PMEntity) {
+                    fetchEnggStoriesOfPMStory(PMEntity, EnggStoriesWithNullPMStory, (err, EnggEntities) => {
+                        if (err) {
+                            logger.error(err);
+                            count--;
+                            logger.debug('processOnlyPickedUpEnggStoriesForADuration:count:' + count);
+                            if (count == 0) return cb(null, scrums, comboObj);
+                        }
+                        else {
+                            buildSpecificComboObj(iterationStartDateMsec, iterationEndDateMsec, PMEntity ? PMEntity.data : null, EnggEntities, PMEntity ? EnggStoriesOfAPMStory[uniquePMStories.indexOf(PMEntity.key.id)] : CurrentKeyEnggStoriesWithNullPMStory, flagOnlyEnggStoriesPickedUpInIteration, (err, scrum, specificComboObj) => {
+                                if (err) {
+                                    logger.error(err);
+                                    count--;
+                                    logger.debug('processOnlyPickedUpEnggStoriesForADuration:count:' + count);
+                                    if (count == 0) return cb(null, scrums, comboObj);
+                                }
+                                else {
+                                    logger.debug('After buildSpecificComboObj(), scrum:' + scrum + ', specificComboObj:' + JSON.stringify(specificComboObj));
+                                    if (!scrums && !comboObj) {
+                                        scrums = [scrum];
+                                        comboObj = [[specificComboObj]];
+                                    }
+                                    else {
+                                        var scrumIndex = scrums.indexOf(scrum);
+                                        if (scrumIndex == -1) {
+                                            for (var scrumOrder = 0; scrumOrder < scrums.length; scrumOrder++) {
+                                                if (!scrum) {
+                                                    scrums.splice(0, 0, scrum);
+                                                    comboObj.splice(0, 0, [specificComboObj]);
+                                                    break;
+                                                }
+                                                if (scrums[scrumOrder] > scrum) {
+                                                    scrums.splice(scrumOrder, 0, scrum);
+                                                    comboObj.splice(scrumOrder, 0, [specificComboObj]);
+                                                    break;
+                                                }
+                                                else if (scrumOrder == scrums.length - 1) {
+                                                    scrums.push(scrum);
+                                                    comboObj.push([specificComboObj]);
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        else {
+                                            for (var pmStoryOrder = 0; pmStoryOrder < comboObj[scrumIndex].length; pmStoryOrder++) {
+                                                if ((comboObj[scrumIndex])[pmStoryOrder].pmstory.key > specificComboObj.pmstory.key) {
+                                                    comboObj[scrumIndex].splice(pmStoryOrder, 0, specificComboObj);
+                                                    break;
+                                                }
+                                                else if(pmStoryOrder == comboObj[scrumIndex].length - 1) {
+                                                    comboObj[scrumIndex].push(specificComboObj);
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if (specificComboObj.pmstory) {
+                                        if (!connectivityInvestmentBuckets) {
+                                            connectivityInvestmentBuckets = [specificComboObj.pmstory.connectivityInvestment];
+                                            connectivityInvestmentStoryPoints = [specificComboObj.pmstory.storyPoints];
+                                        }
+                                        else if (connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment) == -1) {
+                                            for (var connInvestIndex = 0; connInvestIndex < connectivityInvestmentBuckets.length; connInvestIndex++) {
+                                                if (connectivityInvestmentBuckets[connInvestIndex] > specificComboObj.pmstory.connectivityInvestment) {
+                                                    connectivityInvestmentBuckets.splice(connInvestIndex, 0, specificComboObj.pmstory.connectivityInvestment);
+                                                    connectivityInvestmentStoryPoints.splice(connInvestIndex, 0, specificComboObj.pmstory.storyPoints);
+                                                    break;
+                                                }
+                                                else if(connInvestIndex == connectivityInvestmentBuckets.length - 1) {
+                                                    connectivityInvestmentBuckets.push(specificComboObj.pmstory.connectivityInvestment);
+                                                    connectivityInvestmentStoryPoints.push(specificComboObj.pmstory.storyPoints);
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        else connectivityInvestmentStoryPoints[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] = connectivityInvestmentStoryPoints[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] + specificComboObj.pmstory.storyPoints;
+                                    }
+
+                                    count--;
+                                    logger.debug('processOnlyPickedUpEnggStoriesForADuration:count:' + count);
+                                    logger.debug('After buildSpecificComboObj(), scrums:' + JSON.stringify(scrums));
+                                    logger.debug('After buildSpecificComboObj(), comboObj:' + JSON.stringify(comboObj));
+
+                                    if (count == 0) return cb(null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints);
+                                }
+                            })
+                        }
+                    });
+                });
+            }
+        });
+    }
+}
+
+/*
 function asyncFetchEnggStories (iterationName, iterationStartDateMsec, iterationEndDateMsec, cb) {
     // const PMStoryKey = ds.key(['Event', event, 'PMStories', parseInt(pmstoryid, 10)]);
     // const PMStoryKey = ds.key(['PMStories', pmstoryid]);
@@ -436,66 +611,54 @@ function asyncFetchEnggStories (iterationName, iterationStartDateMsec, iteration
         }
     });
 }
+*/
 
-function fetchEnggStoriesOfPMStory(iterationStartDateMsec, iterationEndDateMsec, PMEntity, EnggStoriesWithNullPMStory, cb) {
+function fetchEnggStoriesOfPMStory(PMEntity, EnggStoriesWithNullPMStory, cb) {
 
-    if (!PMEntity) {
-        buildSpecificComboObj(iterationStartDateMsec, iterationEndDateMsec, null, EnggStoriesWithNullPMStory, (err, specificComboObj) => {
-            if (err) {
-                logger.error(err);
-                return cb (err, null);
-            }
-            else return cb (null, specificComboObj);
-        });
-    }
+    if (!PMEntity) return cb(null, EnggStoriesWithNullPMStory);
 
-    else {
-        const q = ds.createQuery(['EnggStory']).filter('PMStoryID', '=', PMEntity.key.id);
+    const q = ds.createQuery(['EnggStory'])
+        .filter('PMStoryID', '=', PMEntity.key.id);
 
-        ds.runQuery(q, (err, EnggEntities, nextQuery) => {
-            if (err) {
-                cb(err, null);
-                return;
-            }
-            if (!EnggEntities) {
-                cb('Something wrong. Could not get enggStories changed in iteration starting:' + new Date(iterationStartDateMsec), null);
-                return;
-            }
-            if (EnggEntities.length == 0) {
-                cb('no engg story assigned with PMStoryID:' + PMEntity.key.id, null);
-                return;
-            }
-            else {
-                buildSpecificComboObj(iterationStartDateMsec, iterationEndDateMsec, PMEntity.data, EnggEntities, (err, specificComboObj) => {
-                    if (err) {
-                        logger.error(err);
-                        return cb (err, null);
-                    }
-                    else return cb (null, specificComboObj);
-                });
-            }
-        });
-    }
+    ds.runQuery(q, (err, EnggEntities, nextQuery) => {
+        if (err) {
+            return cb(err, null);
+        }
+        if (!EnggEntities) {
+            return cb('Something wrong. Could not get enggStories changed in iteration starting:' + new Date(iterationStartDateMsec), null);
+        }
+        if (EnggEntities.length == 0) {
+            return cb('no engg story assigned with PMStoryID:' + PMEntity.key.id, null);
+        }
+        else {
+            return cb (null, EnggEntities);
+        }
+    });
 }
 
-function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pmStoryData, entities, cb) {
+function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pmStoryData, entities, enggStoriesPickedUpInIteration, flagOnlyEnggStoriesPickedUpInIteration, cb) {
 
     var count = entities.length;
 
+    var scrum = null;
+
     var comboObjEnggstories = [];
     var PMStoryEntityData = null;
+
     if (pmStoryData) {
         PMStoryEntityData = {};
         PMStoryEntityData.id = pmStoryData.id;
         PMStoryEntityData.key = pmStoryData.currentKey;
         PMStoryEntityData.summary = pmStoryData.summary;
         PMStoryEntityData.status = pmStoryData.status;
-        PMStoryEntityData.fixVersion = pmStoryData.fixVersion;
+        PMStoryEntityData.fixVersion = pmStoryData.fixVersion.length > 0 ? pmStoryData.fixVersion : ['Not Specified'];
         PMStoryEntityData.totalStoriesThisIteration = 0;
         PMStoryEntityData.totalStoriesLastIteration = 0;
         PMStoryEntityData.storyAcceptedThisIteration = 0;
         PMStoryEntityData.storyAcceptedLastIteration = 0;
-        PMStoryEntityData.connectivityInvestment = pmStoryData.connectivityInvestment;
+        PMStoryEntityData.connectivityInvestment = pmStoryData.connectivityInvestment ? pmStoryData.connectivityInvestment[0] : 'Not Specified';
+        PMStoryEntityData.storyPoints = 0;
+        PMStoryEntityData.fixVersionMatches = true;
     }
 
     logger.debug('pmStoryData:' + JSON.stringify(pmStoryData));
@@ -544,7 +707,8 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
             cycleTime = parseInt((entityData.status == 'Accepted'? ((entityData.acceptedDateMsec - firstSprintStartDateMsec) / (oneDayInMsec)) : ((new Date().getTime() - firstSprintStartDateMsec) / (oneDayInMsec))), 10);
         }
         else {
-            if (entityData.status == 'Accepted') cycleTime = parseInt(((entityData.acceptedDateMsec - dateCreatedMsec) / (oneDayInMsec)), 10);
+            cycleTime = parseInt((entityData.status == 'Accepted'? ((entityData.acceptedDateMsec - dateCreatedMsec) / (oneDayInMsec)) : ((new Date().getTime() - dateCreatedMsec) / (oneDayInMsec))), 10);
+            // if (entityData.status == 'Accepted') cycleTime = parseInt(((entityData.acceptedDateMsec - dateCreatedMsec) / (oneDayInMsec)), 10);
         }
         months = 0;
         while (cycleTime >= 30) {
@@ -625,7 +789,7 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         var flagFixVersionsAtIterationEnd = false;
 
         if (entityData.dateCreatedMsec > iterationStartDateMsec){
-            fixVersionsAtIterationStart = null;
+            fixVersionsAtIterationStart = [];
             flagFixVersionsAtIterationStart = true;
         }
 
@@ -647,8 +811,31 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         enggDataForComboObj.fixVersionsAtIterationEnd = fixVersionsAtIterationEnd;
         enggDataForComboObj.fixVersionsAtIterationStart = fixVersionsAtIterationStart;
 
+        // let's compare the two arrays of fixVersionsAtIterationEnd and fixVersionsAtIterationStart
+        enggDataForComboObj.fixVersionsChanged = true;
+
+        if (fixVersionsAtIterationEnd.length ==  0 && fixVersionsAtIterationStart.length == 0) {
+            enggDataForComboObj.fixVersionsChanged = false;
+        }
+        else if (fixVersionsAtIterationStart.length == fixVersionsAtIterationEnd.length) {
+            var flagFixVersionChanged = false;
+            for (let idxFixVersionLength = 0; idxFixVersionLength < fixVersionsAtIterationStart.length && !flagFixVersionChanged; idxFixVersionLength++) {
+                if (fixVersionsAtIterationStart.indexOf(fixVersionsAtIterationEnd[idxFixVersionLength]) == -1) flagFixVersionChanged = true;
+            }
+            if (!flagFixVersionChanged) enggDataForComboObj.fixVersionsChanged = false;
+        }
+
+
         logger.debug('enggDataForComboObj' + JSON.stringify(enggDataForComboObj));
-        comboObjEnggstories.push(enggDataForComboObj);
+        if (!flagOnlyEnggStoriesPickedUpInIteration || enggStoriesPickedUpInIteration.indexOf(enggDataForComboObj.currentKey) != -1) {
+            comboObjEnggstories.push(enggDataForComboObj);
+            if (pmStoryData) {
+                if (!scrum) scrum = entityData.scrum;
+                else if (scrum.indexOf(entityData.scrum) == -1) scrum = scrum + ', ' + entityData.scrum;
+            }
+        }
+
+
         count --;
 
         if (pmStoryData){
@@ -656,8 +843,16 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
             if (storyCreatedPriorToThisIteration) PMStoryEntityData.totalStoriesLastIteration = PMStoryEntityData.totalStoriesLastIteration + 1;
             if (enggDataForComboObj.statusAtIterationEnd == 'Accepted') PMStoryEntityData.storyAcceptedThisIteration = PMStoryEntityData.storyAcceptedThisIteration + 1;
             if (enggDataForComboObj.statusAtIterationStart == 'Accepted') PMStoryEntityData.storyAcceptedLastIteration = PMStoryEntityData.storyAcceptedLastIteration + 1;
-        }
+            if (!isNaN(enggDataForComboObj.storyPointsAtIterationEnd) && enggStoriesPickedUpInIteration.indexOf(enggDataForComboObj.currentKey) != -1)
+                PMStoryEntityData.storyPoints = PMStoryEntityData.storyPoints + parseInt(enggDataForComboObj.storyPointsAtIterationEnd);
 
+            // let's be sure each of the fixVersionsAtIterationEnd matches with fixVersion in PMStory
+            for (let idxFixVersionLength = 0; idxFixVersionLength < fixVersionsAtIterationEnd.length && PMStoryEntityData.fixVersionMatches; idxFixVersionLength++) {
+                if (PMStoryEntityData.fixVersion.indexOf(fixVersionsAtIterationEnd[idxFixVersionLength]) == -1) {
+                    PMStoryEntityData.fixVersionMatches = false;
+                }
+            }
+        }
     }
 
     if (count == 0) {
@@ -666,9 +861,9 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
             PMStoryEntityData.percentComplete = PMStoryEntityData.totalStoriesThisIteration == 0 ? 0 : parseInt(PMStoryEntityData.storyAcceptedThisIteration*100 / PMStoryEntityData.totalStoriesThisIteration, 10);
             PMStoryEntityData.percentCompleteLastIteration = PMStoryEntityData.totalStoriesLastIteration == 0 ? 0 : parseInt(PMStoryEntityData.storyAcceptedLastIteration*100 / PMStoryEntityData.totalStoriesLastIteration, 10);
             let percentChangeLocal = PMStoryEntityData.percentComplete - PMStoryEntityData.percentCompleteLastIteration;
-            PMStoryEntityData.percentChange = percentChangeLocal > 0 ? '+' + percentChangeLocal : percentChangeLocal;
+            PMStoryEntityData.percentChange = percentChangeLocal >= 0 ? '+' + percentChangeLocal : percentChangeLocal;
         }
-        cb(null, {'pmstory': PMStoryEntityData, 'enggstories': comboObjEnggstories});
+        cb(null, scrum, {'pmstory': PMStoryEntityData, 'enggstories': comboObjEnggstories});
         return;
     }
 }
@@ -704,6 +899,28 @@ function _fetchComboObj (reportType, cb) {
         });
     });
 }
+
+function _fetchIterationView (reportType, flagOnlyEnggStoriesPickedUpInIteration, cb) {
+    _getIterationsAndStartEndDates(reportType, (err, iterations, startDateMsec, endDateMsec) => {
+        asyncFetchEnggStoriesForADuration (iterations, (err, enggEntitiesChangedinIterations) => {
+            if (err) {
+                logger.error(err);
+                return cb (err, null);
+            }
+            else {
+                logger.debug('asyncFetchEnggStoriesForADuration complete. enggStories:' + JSON.stringify(enggEntitiesChangedinIterations))
+                processOnlyPickedUpEnggStoriesForADuration(enggEntitiesChangedinIterations, startDateMsec, endDateMsec, flagOnlyEnggStoriesPickedUpInIteration, (err, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints) => {
+                    if (err) {
+                        logger.error('asyncFetchEnggStoriesForADuration: Error: ' + err);
+                        return cb (err, null, null);
+                    }
+                    else return cb (null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints);
+                });
+            }
+        });
+    });
+}
+
 
 function getQuarterDates(qtr, cb) {
     var now = new Date();
@@ -1498,6 +1715,7 @@ module.exports = {
     ds,
     getIterationNameAndDates: _getIterationNameAndDates,
     getIterationsAndStartEndDates: _getIterationsAndStartEndDates,
+    fetchIterationView: _fetchIterationView,
     twoWksInMsec
 };
 // [END exports]

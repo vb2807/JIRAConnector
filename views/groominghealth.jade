@@ -18,39 +18,39 @@ block content
       caption PM Stories Status
         tr
           th.pmstorykey='PM Story Details [Connectivity Investment, Fix Version, Status, Completion (%), Change (%)]'
+        tr
           th.enggstorykey='Engg Story Details [Status (Last Status), Story Points (Last Points), Queue Time, Cycle Time, JIRA Link]'
       each ComboObj in ComboObjs
         table.comboObj
           tr
-            td
-              table.pmstoryrow
-                tr
-                if ComboObj.pmstory == null
-                  td.red= 'No PM Story linked with these engg stories'
-                else
-                  td
-                    a(href='https://sailpoint.atlassian.net/browse/' + ComboObj.pmstory.key) #{ComboObj.pmstory.key}
-                    |   #{ComboObj.pmstory.summary}
-                tr
-                  td
-                    table
-                      tr
-                        if ComboObj.pmstory != null
-                          td='['
-                          td=ComboObj.pmstory.connectivityInvestment + ', '
-                          td=ComboObj.pmstory.fixVersion + ', '
-                          td=ComboObj.pmstory.status + ', '
-                          if ComboObj.pmstory.percentComplete == 100
-                            td.green=ComboObj.pmstory.percentComplete + ' %'
-                          else
-                            td=ComboObj.pmstory.percentComplete + ' %'
-                          td=' ('
-                          if ComboObj.pmstory.percentChange <= 0
-                            td.red=ComboObj.pmstory.percentChange + ' %'
-                          else
-                            td.yellow=ComboObj.pmstory.percentChange + ' %'
-                          td=') ]'
-            td
+            table
+              tr
+              if ComboObj.pmstory == null
+                td.red= 'No PM Story linked with these engg stories'
+              else
+                td
+                  a(href='https://sailpoint.atlassian.net/browse/' + ComboObj.pmstory.key) #{ComboObj.pmstory.key}
+                  |   #{ComboObj.pmstory.summary}
+              tr
+                td
+                  table
+                    tr
+                      if ComboObj.pmstory != null
+                        td='['
+                        td=ComboObj.pmstory.connectivityInvestment + ', '
+                        td=ComboObj.pmstory.fixVersion + ', '
+                        td=ComboObj.pmstory.status + ', '
+                        if ComboObj.pmstory.percentComplete == 100
+                          td.green=ComboObj.pmstory.percentComplete + ' %'
+                        else
+                          td=ComboObj.pmstory.percentComplete + ' %'
+                        td=' ('
+                        if ComboObj.pmstory.percentChange <= 0
+                          td.red=ComboObj.pmstory.percentChange + ' %'
+                        else
+                          td.yellow=ComboObj.pmstory.percentChange + ' %'
+                        td=') ]'
+            tr
               table
                 each enggStory in ComboObj.enggstories
                   tr.linetop

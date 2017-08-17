@@ -41,7 +41,7 @@ router.use((req, res, next) => {
 router.get('/groominghealth', (req, res, next) => {
   console.log('req.query.type:' + req.query.type);
   // console.log('req.query.which:' + req.query.which);
-  getModel().fetchComboObj(req.query.type, (err, comboObjs) => {
+  getModel().fetchIterationView(req.query.type, false, (err, scrums, comboObjs, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints) => {
     if (err) {
       console.log(err);
       next(err);
@@ -56,7 +56,7 @@ router.get('/groominghealth', (req, res, next) => {
     if(comboObjs) {
         console.log('returned all the combo objs. Ready to send HTML');
         console.log('comboObjs:' + JSON.stringify(comboObjs));
-
+        /*
         comboObjs.forEach((x) => {
           console.log('x:' + JSON.stringify(x));
           console.log('x:' + x);
@@ -68,16 +68,59 @@ router.get('/groominghealth', (req, res, next) => {
           })
 
         });
+        */
 
-        res.render('iterationstatus.jade', {
+        res.render('pmstorystatus.jade', {
+            scrums: scrums,
             ComboObjs: comboObjs
         });
     }
   });
 });
 
-router.get('/l', (req, res) => {
-    res.end('Hi There. This is from crud.js.');
+router.get('/iterationview', (req, res, next) => {
+    console.log('req.query.type:' + req.query.type);
+    // console.log('req.query.which:' + req.query.which);
+    getModel().fetchIterationView(req.query.type, true, (err, scrums, comboObjs, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints) => {
+        if (err) {
+            console.log(err);
+            next(err);
+            return;
+        }
+        if(!comboObjs) {
+            console.log('ComboObjs in null.');
+            res.end('ComboObjs in null.');
+            return;
+        }
+        // console.log(pmstories);
+        if(comboObjs) {
+            console.log('returned all the combo objs. Ready to send HTML');
+            console.log('comboObjs:' + JSON.stringify(comboObjs));
+            console.log('scrums:' + JSON.stringify(scrums));
+            console.log('connectivityInvestmentBuckets:' + JSON.stringify(connectivityInvestmentBuckets));
+            console.log('connectivityInvestmentStoryPoints:' + JSON.stringify(connectivityInvestmentStoryPoints));
+            /*
+            comboObjs.forEach((x) => {
+                console.log('x:' + JSON.stringify(x));
+                console.log('x:' + x);
+                console.log('x.pmstory:' + x.pmstory);
+                console.log('x.enggstories:' + x.enggstories);
+
+                x.enggstories.forEach ((enggstory) => {
+                    console.log(enggstory);
+                })
+
+            });
+            */
+
+            res.render('iterationstatus.jade', {
+                scrums: scrums,
+                ComboObjs: comboObjs,
+                connectivityInvestmentBuckets: connectivityInvestmentBuckets,
+                connectivityInvestmentStoryPoints: connectivityInvestmentStoryPoints
+            });
+        }
+    });
 });
 
 /**

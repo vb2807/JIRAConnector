@@ -23,24 +23,42 @@ block content
       div
         div.badgePM
           if ComboObj.pmstory == null
-            span.red 'No PM Story linked with these engg stories'
+            span.blueviolet 'No PM Story linked with these engg stories'
           else
             a(href='https://sailpoint.atlassian.net/browse/' + ComboObj.pmstory.key) #{ComboObj.pmstory.key}
             |   #{ComboObj.pmstory.summary}
             span  [
             if ComboObj.pmstory.connectivityInvestment == 'Not Specified'
-              span.red #{ComboObj.pmstory.connectivityInvestment},
+              span.blueviolet  Investment
+              span.blueviolet :
+              span.blueviolet  #{ComboObj.pmstory.connectivityInvestment}
             else
-              span #{ComboObj.pmstory.connectivityInvestment},
+              span  Investment
+              span :
+              span  #{ComboObj.pmstory.connectivityInvestment}
+            span ;
+            span
             if ComboObj.pmstory.fixVersionMatches
-              span  #{ComboObj.pmstory.fixVersion}
+              span Fix Version(s)
+              span :
+              span #{ComboObj.pmstory.fixVersion}
             else
-              span.red  #{ComboObj.pmstory.fixVersion}
-            span ,
-            span  #{ComboObj.pmstory.status}
-            span ,
+              span.blueviolet Fix Version(s)
+              span.blueviolet :
+              span.blueviolet  #{ComboObj.pmstory.fixVersion}
+            span ;
+            span
+            if ComboObj.pmstory.status == 'In Execution' || ComboObj.pmstory.status == 'In Grooming' || ComboObj.pmstory.status == 'Accepted'
+              span Status:
+              span  #{ComboObj.pmstory.status}
+            else
+              span.blueviolet Status:
+              span.blueviolet  #{ComboObj.pmstory.status}
+            span ;
+            span  Complete:
             if ComboObj.pmstory.percentComplete == 100
-              span.green  #{ComboObj.pmstory.percentComplete}%
+              span
+              span.green #{ComboObj.pmstory.percentComplete}%
             else
               span  #{ComboObj.pmstory.percentComplete}%
             span  (
@@ -58,17 +76,19 @@ block content
                 span.yellow #{enggStory.statusAtIterationEnd}
                 span  (
                 span.strikethrough #{enggStory.statusAtIterationStart}
-                span ),
+                span )
               else
-                span #{enggStory.statusAtIterationStart},
+                span #{enggStory.statusAtIterationStart}
+              span ,
+              span
               span  Fix Version:
               if enggStory.fixVersionsChanged
-                span.yellow  #{enggStory.fixVersionsAtIterationEnd}
+                span.yellow #{enggStory.fixVersionsAtIterationEnd}
                 span  (
                 span.strikethrough #{enggStory.fixVersionsAtIterationStart}
                 span )
               else
-                span  #{enggStory.fixVersionsAtIterationEnd}
+                span #{enggStory.fixVersionsAtIterationEnd}
               span ,
               span  Story Points:
               if enggStory.storyPointsChanged
