@@ -22,7 +22,7 @@ block content
     each ComboObj in ComboObjArray
       div
         div.badgePM
-          if ComboObj.pmstory == null
+          if !ComboObj.pmstory
             span.red 'No PM Story linked with these engg stories'
           else
             a(href='https://sailpoint.atlassian.net/browse/' + ComboObj.pmstory.key) #{ComboObj.pmstory.key}

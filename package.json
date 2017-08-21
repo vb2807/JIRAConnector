@@ -52,7 +52,8 @@
     "nib": "^1.1.2",
     "node-schedule": "^1.2.3",
     "prompt": "^1.0.0",
-    "stylus": "^0.54.5"
+    "stylus": "^0.54.5",
+    "jira-connector": "^2.6.0"
   },
   "devDependencies": {
     "mocha": "^3.0.2",

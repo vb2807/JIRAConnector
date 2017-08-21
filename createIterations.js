@@ -197,7 +197,7 @@ function createCONIteration() {
 function createIteration(reqDate) {
     // let's create 20 CONIterations i.e. 'CON - Iteration 01' thru 'CON - Iteration 20'
     if (!reqDate) {
-        logger.error('Provide date until when iterations are to be created');
+        logger.error('Provide date until when iterations are to be created. Date format: YYYY-MM-DD');
         return;
     }
     var startDateMsecIteration01 = new Date('2017-01-08T18:00:00.000-05:00').getTime();

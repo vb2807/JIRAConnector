@@ -31,7 +31,7 @@ const logger = new (winston.Logger)({
     ]
 });
 
-logger.level = 'debug';
+logger.level = 'info';
 
 
 var pageCounter;

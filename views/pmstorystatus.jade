@@ -23,7 +23,7 @@ block content
       div
         div.badgePM
           if ComboObj.pmstory == null
-            span.blueviolet 'No PM Story linked with these engg stories'
+            span 'No PM Story linked with these engg stories'
           else
             a(href='https://sailpoint.atlassian.net/browse/' + ComboObj.pmstory.key) #{ComboObj.pmstory.key}
             |   #{ComboObj.pmstory.summary}
@@ -67,44 +67,44 @@ block content
             else
               span #{ComboObj.pmstory.percentChange}%
             span )]
-        each enggStory in ComboObj.enggstories
-          br
-          div.badgeEngg
-            span #{enggStory.summary}
-            span  [
-              if enggStory.statusChanged
-                span.yellow #{enggStory.statusAtIterationEnd}
-                span  (
-                span.strikethrough #{enggStory.statusAtIterationStart}
-                span )
-              else
-                span #{enggStory.statusAtIterationStart}
-              span ,
-              span
-              span  Fix Version:
-              if enggStory.fixVersionsChanged
-                span.yellow #{enggStory.fixVersionsAtIterationEnd}
-                span  (
-                span.strikethrough #{enggStory.fixVersionsAtIterationStart}
-                span )
-              else
-                span #{enggStory.fixVersionsAtIterationEnd}
-              span ,
-              span  Story Points:
-              if enggStory.storyPointsChanged
-                span  #{enggStory.storyPointsAtIterationEnd}
-                span  (
-                span #{enggStory.storyPointsAtIterationStart}
-                span ),
-              else
-                span  #{enggStory.storyPointsAtIterationStart},
-              span  Queue Time:
-              span  #{enggStory.queueTime},
-              span  Cycle Time:
-              span  #{enggStory.cycleTime},
-              span
-              span
-                a(href='https://sailpoint.atlassian.net/browse/' + enggStory.currentKey)  #{enggStory.currentKey}
-              span ]
+          each enggStory in ComboObj.enggstories
+            br
+            div.badgeEngg
+              span #{enggStory.summary}
+              span  [
+                if enggStory.statusChanged
+                  span.yellow #{enggStory.statusAtIterationEnd}
+                  span  (
+                  span.strikethrough #{enggStory.statusAtIterationStart}
+                  span )
+                else
+                  span #{enggStory.statusAtIterationStart}
+                span ,
+                span
+                span  Fix Version:
+                if enggStory.fixVersionsChanged
+                  span.yellow #{enggStory.fixVersionsAtIterationEnd}
+                  span  (
+                  span.strikethrough #{enggStory.fixVersionsAtIterationStart}
+                  span )
+                else
+                  span #{enggStory.fixVersionsAtIterationEnd}
+                span ,
+                span  Story Points:
+                if enggStory.storyPointsChanged
+                  span  #{enggStory.storyPointsAtIterationEnd}
+                  span  (
+                  span #{enggStory.storyPointsAtIterationStart}
+                  span ),
+                else
+                  span  #{enggStory.storyPointsAtIterationStart},
+                span  Queue Time:
+                span  #{enggStory.queueTime},
+                span  Cycle Time:
+                span  #{enggStory.cycleTime},
+                span
+                span
+                  a(href='https://sailpoint.atlassian.net/browse/' + enggStory.currentKey)  #{enggStory.currentKey}
+                span ]
       br
       br

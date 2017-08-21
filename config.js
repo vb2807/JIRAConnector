@@ -42,7 +42,7 @@ nconf
     DATA_BACKEND: 'cloudsql',
 
     // This is the id of your project in the Google Cloud Developers Console.
-    GCLOUD_PROJECT: 'perfin-154404',
+    GCLOUD_PROJECT: 'jiraconnector-177113',
 
     // MongoDB connection string
     // https://docs.mongodb.org/manual/reference/connection-string/
