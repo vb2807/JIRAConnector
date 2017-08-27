@@ -9,6 +9,7 @@ var groomingHealthStoryPoints = [];
 var EnggStoriesPromises = [];
 var PMStoryPromises = [];
 var groomingData = [];
+const express = require('express');
 const config = require('./config');
 const Datastore = require('@google-cloud/datastore');
 var schedule = require('node-schedule');
@@ -178,7 +179,164 @@ process.argv.forEach(function (val, index, array) {
         testgetIterationsAndStartEndDates(array[index + 1]);
         return;
     }
+
+    if (val == 'publishHarborReport') {
+        publishHarborReport('iteration');
+        return;
+    }
+    if (val == 'getPMStoryChanges') {
+        _getPMStoryChanges(1503270000000, 1504479599999, (err, changedPMStories) => {
+            console.log('changedPMStories:' + JSON.stringify(changedPMStories));
+            return;
+        });
+    }
+
+    if (val == 'getGroomingHealth') {
+        getGroomingHealth((err, groomingHealth, groomingHealthPM) => {
+            console.log('err:' + err);
+            console.log('groomingHealth:' + JSON.stringify(groomingHealth));
+            console.log('groomingHealthPM:' + JSON.stringify(groomingHealthPM));
+            return;
+        });
+        return;
+    }
 });
+
+function publishHarborReport(reportType ){
+
+    getModel().fetchIterationView(reportType, true, (err, scrums, comboObjs, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, iterations, startDateMsec, endDateMsec) => {
+        if (err) {
+            logger.error(err);
+            return;
+        }
+        if(!comboObjs) {
+            logger.error('ComboObjs in null.');
+            return;
+        }
+        // console.log(pmstories);
+        if(comboObjs) {
+            logger.debug('returned all the combo objs. Ready to send HTML');
+            logger.debug('comboObjs:' + JSON.stringify(comboObjs));
+            logger.debug('scrums:' + JSON.stringify(scrums));
+            logger.debug('connectivityInvestmentBuckets:' + JSON.stringify(connectivityInvestmentBuckets));
+            logger.debug('connectivityInvestmentStoryPoints:' + JSON.stringify(connectivityInvestmentStoryPoints));
+            /*
+             comboObjs.forEach((x) => {
+             console.log('x:' + JSON.stringify(x));
+             console.log('x:' + x);
+             console.log('x.pmstory:' + x.pmstory);
+             console.log('x.enggstories:' + x.enggstories);
+
+             x.enggstories.forEach ((enggstory) => {
+             console.log(enggstory);
+             })
+
+             });
+             */
+            _getGroomingHealth((err, groomingScrums, groomingHealthEngg, groomingHealthPM) => {
+                console.log('groomingScrums:' + JSON.stringify(groomingScrums));
+                console.log('groomingHealthEngg:' + JSON.stringify(groomingHealthEngg));
+                console.log('groomingHealthPM:' + JSON.stringify(groomingHealthPM));
+                _getPMStoryChanges(startDateMsec, endDateMsec, (err, changedPMStories) => {
+                    console.log('changedPMStories:' + JSON.stringify(changedPMStories));
+                    express().render('harboriterationstatus.jade', {
+                        groomingScrums: groomingScrums,
+                        groomingHealthEngg: groomingHealthEngg,
+                        groomingHealthPM: groomingHealthPM,
+                        changedPMStories: changedPMStories,
+                        scrums: scrums,
+                        ComboObjs: comboObjs,
+                        connectivityInvestmentBuckets: connectivityInvestmentBuckets,
+                        connectivityInvestmentStoryPoints: connectivityInvestmentStoryPoints,
+                        connectivityInvestmentDoneStoryPoints: connectivityInvestmentDoneStoryPoints
+                    }, function (err, html) {
+                        if (err) {
+                            logger.error('express().render(harboriterationstatus.jade):' + err);
+                            getModel().publishOnHarbor('Connectivity Health', 'Unable to get HTML');
+                        }
+                        else getModel().publishOnHarbor(iterations, html);
+                        return
+                    });
+                });
+            });
+        }
+    });
+}
+
+function _recursePMStoryChanges(changedPMStories, startDateMsec, endDateMsec, token, cb) {
+    getModel().getPMStoriesChangedBetween(startDateMsec, endDateMsec, token, (err, PMEntities, hasMore) => {
+        logger.debug('PMEntities.length:' + PMEntities.length);
+        for (var i = 0; i < PMEntities.length; i++) {
+            // let's get the change in status
+            var statusAtStart = null;
+            var statusAtEnd = null;
+            var flagStatusAtStart = false;
+            var flagStatusAtEnd = false;
+
+            if (PMEntities[i].createTimeMsec > startDateMsec){
+                statusAtStart = 'New';
+                flagStatusAtStart = true;
+            }
+
+            for (var j=0; j < PMEntities[i].statusHistory.length; j++) {
+                let historyLine = JSON.parse(PMEntities[i].statusHistory[j]);
+                if (!flagStatusAtEnd && endDateMsec >= historyLine[1]) {
+                    statusAtEnd = historyLine[2];
+                    flagStatusAtEnd = true;
+                }
+
+                if (!flagStatusAtStart && startDateMsec >= historyLine[1]) {
+                    statusAtStart = historyLine[2];
+                    flagStatusAtStart = true;
+                }
+            }
+            if (statusAtEnd != statusAtStart) {
+                let pmstorydata = {};
+                pmstorydata.statusAtEnd = statusAtEnd;
+                pmstorydata.statusAtStart = statusAtStart;
+                pmstorydata.pmstorykey = PMEntities[i].currentKey;
+                pmstorydata.summary = PMEntities[i].summary;
+                logger.debug('Changed PMEntity:' + pmstorydata.pmstorykey + ', ' + pmstorydata.summary + ', ' + pmstorydata.statusAtEnd + ', ' + pmstorydata.statusAtStart);
+                if (!changedPMStories) changedPMStories = [pmstorydata];
+                else {
+                    var flagEntryDone = false;
+                    var categoryFound = false;
+                    for (var k = 0; k < changedPMStories.length && !flagEntryDone; k++) {
+                        if (changedPMStories[k].statusAtEnd == pmstorydata.statusAtEnd) categoryFound = true;
+                        if (!categoryFound && changedPMStories[k].statusAtEnd > pmstorydata.statusAtEnd) {
+                            changedPMStories.splice(k, 0, pmstorydata);
+                            flagEntryDone = true;
+                            break;
+                        }
+                        if (categoryFound && changedPMStories[k].statusAtEnd != pmstorydata.statusAtEnd) {
+                            changedPMStories.splice(k, 0, pmstorydata);
+                            flagEntryDone = true;
+                            break;
+                        }
+                        else if (categoryFound && changedPMStories[k].pmstorykey > pmstorydata.pmstorykey) {
+                            changedPMStories.splice(k, 0, pmstorydata);
+                            flagEntryDone = true;
+                            break;
+                        }
+                    }
+                    if (!flagEntryDone) {
+                        changedPMStories.push(pmstorydata);
+                    }
+                }
+            }
+        }
+        if (hasMore) _recursePMStoryChanges(changedPMStories, startDateMsec, endDateMsec, hasMore, cb);
+        else return cb(null, changedPMStories);
+    });
+}
+
+function _getPMStoryChanges(startDateMsec, endDateMsec, cb) {
+    var changedPMStories = null;
+    var token = 0;
+    _recursePMStoryChanges(changedPMStories, startDateMsec, endDateMsec, token, (err, changedPMStories) => {
+        return cb (null, changedPMStories);
+    });
+}
 
 function testgetIterationsAndStartEndDates(reportType) {
     getModel().getIterationsAndStartEndDates(reportType, (err, iterations, startDate, endDate) => {
@@ -296,6 +454,7 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
             "customfield_10016", //Sprint field in JIRA
             "customfield_10109",
             "customfield_10017", // Epic link
+            "customfield_16602", // Acceptance Criteria Reviewed by PM
             "fixVersions",
             "assignee",
             "customfield_14407",
@@ -348,61 +507,11 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
                                 });
                             }
                             */
-                            var PMStoryKey = getModel().ds.key(['PMStory', parseInt(specificIssue.id, 10)]);
-                            var PMStoryEntity = {
-                                    key: PMStoryKey,
-                                    data: [
-                                        {
-                                            name: 'entityUpdateTime',
-                                            value: updateTime.toJSON()
-                                        },
-                                        {
-                                            name: 'currentKey',
-                                            value: specificIssue.key
-                                        },
-                                        {
-                                            name: 'id',
-                                            value: specificIssue.id
-                                        },
-                                        {
-                                            name: 'summary',
-                                            value: specificIssue.fields.summary
-                                        },
-                                        {
-                                            name: 'status',
-                                            value: specificIssue.fields.status.name
-                                        },
-                                        {
-                                            name: 'connectivityInvestment',
-                                            value: specificIssue.fields.customfield_14407
-                                        },
-                                        {
-                                            name: 'PMOwner',
-                                            value: specificIssue.fields.assignee == null ? null : specificIssue.fields.assignee.name
-                                        },
-                                        {
-                                            name: 'fixVersion',
-                                            value: specificIssue.fields.fixVersions.map((obj) => {
-                                                    return obj.name
-                                                }
-                                            ),
-                                            excludeFromIndexes: true
-                                        },
-                                        {
-                                            name: 'components',
-                                            value: specificIssue.fields.components.map((obj) => {
-                                                    return obj.name
-                                                }
-                                            ),
-                                            excludeFromIndexes: true
-                                        }
-                                        ,
-                                    ]
-                                }
-                            ;
                             // console.log('about to create PM entity:' + JSON.stringify(PMStoryEntity));
-                            issueCounter++;
-                            saveEntity(PMStoryEntity, 'PMStory', specificIssue, searchResult.issues.length, searchResult.total, issueCounter, cursor, deltaSince, updateTime, JIRAProjects);
+                            buildPMEntity(specificIssue, updateTime, (PMStoryEntity) => {
+                                issueCounter++;
+                                saveEntity(PMStoryEntity, 'PMStory', specificIssue, searchResult.issues.length, searchResult.total, issueCounter, cursor, deltaSince, updateTime, JIRAProjects);
+                            });
                         }
                         else {
                             // It's an EnggStory
@@ -632,6 +741,116 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
     return;
 }
 
+function buildPMEntity(specificIssue, updateTime, cb) {
+    // let's get its changelog
+    var arrayHistories = specificIssue.changelog.histories;
+    var acceptedDate = null;
+    // var createDate = specificIssue.fields.created.substring(0,10);
+    var createDate = specificIssue.fields.created;
+    var createDateMsec = new Date(createDate).getTime();
+
+    var statusHistory = [];
+
+    // let's first set the current information with create date assuming we don't find any history for anything
+    statusHistory.push(JSON.stringify([createDate, createDateMsec, specificIssue.fields.status.name]));
+
+    // now let's iterate thru history, and shift data if we find something
+    var indexHistories = arrayHistories.length;
+    while (indexHistories >  0) {
+        indexHistories--;
+        var specificHistory = arrayHistories[indexHistories];
+        var dateHistoryStr = specificHistory.created;
+        var dateHistoryObj = new Date(dateHistoryStr);
+        var dateHistoryMsec = dateHistoryObj.getTime();
+
+        for (var indexSpecificHistoryItems = specificHistory.items.length - 1; indexSpecificHistoryItems >= 0; indexSpecificHistoryItems--) {
+            var historyItem = specificHistory.items[indexSpecificHistoryItems];
+            if(historyItem.field == 'status') {
+                let lastItemStatusHistory = JSON.parse(statusHistory.pop());
+                statusHistory.push(JSON.stringify([dateHistoryStr, dateHistoryMsec, lastItemStatusHistory[2]]));
+                statusHistory.push(JSON.stringify([lastItemStatusHistory[0], lastItemStatusHistory[1], historyItem.fromString]));
+
+                if (historyItem.toString == 'Accepted' && !acceptedDate) {
+                    acceptedDate = dateHistoryObj;
+                    // acceptedDate = dateHistoryObj.getFullYear() + '-' + (dateHistoryObj.getMonth() + 1) + '-' + dateHistoryObj.getDate();
+                }
+            }
+        }
+    }
+
+    var PMStoryEntity = {
+        key: getModel().ds.key(['PMStory', parseInt(specificIssue.id, 10)]),
+        data: [
+            {
+                name: 'entityUpdateTime',
+                value: updateTime.toJSON()
+            },
+            {
+                name: 'entityUpdateTimeMsec',
+                value: updateTime.getTime()
+            },
+            {
+                name: 'createTimeMsec',
+                value: new Date(specificIssue.fields.created).getTime()
+            },
+            {
+                name: 'createTime',
+                value: new Date(specificIssue.fields.created).toJSON()
+            },
+            {
+                name: 'currentKey',
+                value: specificIssue.key
+            },
+            {
+                name: 'id',
+                value: specificIssue.id
+            },
+            {
+                name: 'summary',
+                value: specificIssue.fields.summary
+            },
+            {
+                name: 'status',
+                value: specificIssue.fields.status.name
+            },
+            {
+                name: 'connectivityInvestment',
+                value: specificIssue.fields.customfield_14407
+            },
+            {
+                name: 'PMOwner',
+                value: specificIssue.fields.assignee == null ? null : specificIssue.fields.assignee.name
+            },
+            {
+                name: 'fixVersion',
+                value: specificIssue.fields.fixVersions.map((obj) => {
+                        return obj.name
+                    }
+                ),
+                excludeFromIndexes: true
+            },
+            {
+                name: 'updatedMsec',
+                value: new Date(specificIssue.fields.updated).getTime()
+            },
+            {
+                name: 'components',
+                value: specificIssue.fields.components.map((obj) => {
+                        return obj.name
+                    }
+                ),
+                excludeFromIndexes: true
+            },
+            {
+                name: 'statusHistory',
+                value: statusHistory,
+                excludeFromIndexes: true
+            },
+        ]
+    };
+    return cb(PMStoryEntity);
+}
+
 function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, firstSprintStartDate, currentFixVersions, currentSprintsStrArray, sprintsTravelled) {
     var dateCreatedObj = new Date(specificIssue.fields.created);
     var dateCreatedMsec = dateCreatedObj.getTime();
@@ -681,6 +900,10 @@ function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, delt
             {
                 name: 'updatedMsec',
                 value: new Date(specificIssue.fields.updated).getTime()
+            },
+            {
+                name: 'acceptanceReviewedByPM',
+                value: specificIssue.fields.customfield_16602 ? 'Yes' : 'No'
             },
             {
                 name: 'fixVersion',
@@ -789,6 +1012,65 @@ function searchComplete(updateTime, JIRAProjects) {
     });
 }
 
+function processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHealthPMReviewed, token, cb) {
+    getModel().getReadyReadyEnggStories(token, (err, entities, hasMore) => {
+        if (err) {
+            logger.error(err);
+            return cb(err, scrums, groomingHealthEngg, groomingHealthPMReviewed);
+        }
+        for (var i = 0; i < entities.length; i++) {
+            console.log('entities[' + i + '].data.scrum:' + entities[i].data.scrum);
+            console.log('entities[' + i + '].data.storyPoints:' + entities[i].data.storyPoints);
+
+            if (!scrums && !groomingHealthEngg && !groomingHealthPMReviewed) {
+                scrums = [entities[i].data.scrum];
+                groomingHealthEngg = entities[i].data.storyPoints ? [parseInt(entities[i].data.storyPoints, 10)] : [0];
+                groomingHealthPMReviewed = (entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? [parseInt(entities[i].data.storyPoints, 10)] : [0];
+            }
+            else {
+                var scrumIndex = scrums.indexOf(entities[i].data.scrum);
+                if (scrumIndex == -1) {
+                    for (var scrumOrder = 0; scrumOrder < scrums.length; scrumOrder++) {
+                        if (scrums[scrumOrder] > entities[i].data.scrum) {
+                            scrums.splice(scrumOrder, 0, entities[i].data.scrum);
+                            groomingHealthEngg.splice(scrumOrder, 0, entities[i].data.storyPoints ? [parseInt(entities[i].data.storyPoints, 10)] : [0]);
+                            groomingHealthPMReviewed.splice(scrumOrder, 0, (entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? [parseInt(entities[i].data.storyPoints, 10)] : [0]);
+                            break;
+                        }
+                        else if (scrumOrder == scrums.length - 1) {
+                            scrums.push(entities[i].data.scrum);
+                            groomingHealthEngg.push(entities[i].data.storyPoints ? [parseInt(entities[i].data.storyPoints, 10)] : [0]);
+                            groomingHealthPMReviewed.push((entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? [parseInt(entities[i].data.storyPoints, 10)] : [0]);
+                            break;
+                        }
+                    }
+                }
+                else {
+                    groomingHealthEngg[scrumIndex] = parseInt(groomingHealthEngg[scrumIndex], 10) + (entities[i].data.storyPoints ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                    groomingHealthPMReviewed[scrumIndex] = parseInt(groomingHealthPMReviewed[scrumIndex], 10) + ((entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                }
+            }
+        }
+        console.log('scrums:' + JSON.stringify(scrums));
+        console.log('groomingHealthEngg:' + JSON.stringify(groomingHealthEngg));
+        console.log('groomingHealthPMReviewed:' + JSON.stringify(groomingHealthPMReviewed));
+
+        if (!hasMore) return cb (null, scrums, groomingHealthEngg, groomingHealthPMReviewed);
+        else return processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHealthPMReviewed, hasMore, cb);
+    });
+}
+
+function _getGroomingHealth(cb) {
+    var token = 0;
+    var groomingScrums = null;
+    var groomingHealthEngg = null;
+    var groomingHealthPMReviewed = null;
+
+    processEntitiesForGroomingHealth(groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, token, (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed) => {
+        return cb (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed);
+    });
+}
+
 function _deltaAgg(optionSelected) {
     var JIRAProjects;
     if (optionSelected == 'all') JIRAProjects = AllJIRAProjects;
@@ -808,5 +1090,6 @@ function _deltaAgg(optionSelected) {
 module.exports = {
     deltaAgg: _deltaAgg,
     copyWeeklyData: _copyWeeklyData,
-    copyData
+    copyData,
+    getGroomingHealth: _getGroomingHealth
 }

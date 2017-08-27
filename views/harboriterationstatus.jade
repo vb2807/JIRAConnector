@@ -1,0 +1,162 @@
+//- Copyright 2015-2016, Google, Inc.
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+
+extends ./baseHarbor.jade
+
+block content
+  h1(style="text-align: left;") Grooming Health
+  table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
+    tbody
+      tr
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Scrum
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Story Points
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Story Points (PM Reviewed)
+      each groomingScrum, index in groomingScrums
+        tr
+          td(style="padding: 6px;")
+            span #{groomingScrum}
+          td(style="padding: 6px;")
+            span #{groomingHealthEngg[index]}
+          td(style="padding: 6px;")
+            span #{groomingHealthPM[index]}
+  br
+  br
+  h1(style="text-align: left;") Connectivity Investment
+  table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
+    tbody
+      tr
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Investment Bucket
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Story Points (Planned)
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Story Points (Done)
+      each investmentBucket, index in connectivityInvestmentBuckets
+        tr
+          td(style="padding: 6px;")
+            span #{investmentBucket}
+          td(style="padding: 6px;")
+            span #{connectivityInvestmentStoryPoints[index]}
+          td(style="padding: 6px;")
+            span #{connectivityInvestmentDoneStoryPoints[index]}
+  br
+  br
+  h1(style="text-align: left;") PMStory Changes
+  table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
+    tbody
+      tr
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Key
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Summary
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Status
+      each changedPMStory in changedPMStories
+        tr
+          td(style="padding: 6px;")
+            a(href='https://sailpoint.atlassian.net/browse/' + changedPMStory.pmstorykey) #{changedPMStory.pmstorykey}
+          td(style="padding: 6px;")
+            span #{changedPMStory.summary}
+          td(style="padding: 6px;")
+            span #{changedPMStory.statusAtEnd}
+            span  (
+            span(style="text-decoration: line-through;") #{changedPMStory.statusAtStart}
+            span )
+  br
+  br
+  h1(style="text-align: center;") Stories Health
+  - var scrumCount = -1;
+  each scrum in scrums
+    - scrumCount++;
+    h1 #{scrum}
+    - var ComboObjArray = ComboObjs[scrumCount]
+    each ComboObj in ComboObjArray
+      table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;" width="100%")
+        tbody
+          tr
+            td(style="padding: 6px;", colspan=7)
+              table(border="0" width="100%")
+                tr
+                  td(style="background-color: #f2f2f2;")
+                    if !ComboObj.pmstory
+                      span(style="background-color: #2873ee;color: #303030;") 'No PM Story linked with these engg stories'
+                    else
+                      a(href='https://sailpoint.atlassian.net/browse/' + ComboObj.pmstory.key) #{ComboObj.pmstory.key}
+                      |   #{ComboObj.pmstory.summary}
+                      td(style="text-align: right;background-color: #f2f2f2;")
+                        span [
+                        if ComboObj.pmstory.status == 'Accepted' || ComboObj.pmstory.status == 'In Execution'
+                          span #{ComboObj.pmstory.status}
+                        else
+                          span(style="background-color: #2873ee; color: #303030;") #{ComboObj.pmstory.status}
+                        span ,
+                        span  Completed:
+                        if ComboObj.pmstory.percentComplete == 100
+                          span(style="background-color: #7ed529;")  #{ComboObj.pmstory.percentComplete}%
+                        else
+                          span  #{ComboObj.pmstory.percentComplete}%
+                        span  (
+                        if ComboObj.pmstory.percentChange > 0
+                          span(style="background-color: #7ed529;") #{ComboObj.pmstory.percentChange}%
+                          // span(style="background-color: #faf387;") #{ComboObj.pmstory.percentChange}%
+                          //span(style="background-color: #e23d39;") #{ComboObj.pmstory.percentChange}%
+                        else
+                          span #{ComboObj.pmstory.percentChange}%
+                        span ),
+                        span  Fix Version:
+                        if ComboObj.pmstory.fixVersionMatches
+                          span  #{ComboObj.pmstory.fixVersion}
+                        else
+                          span(style="background-color: #2873ee; color: #303030;")  #{ComboObj.pmstory.fixVersion}
+                        span ,
+                        span  Investment:
+                        if ComboObj.pmstory.connectivityInvestment == 'Not Specified'
+                          span(style="background-color: #2873ee; color: #303030;")  #{ComboObj.pmstory.connectivityInvestment}
+                        else
+                          span  #{ComboObj.pmstory.connectivityInvestment}
+                        span ]
+          each enggStory in ComboObj.enggstories
+            tr
+              td(style="padding: 6px;")
+                span
+                  a(href='https://sailpoint.atlassian.net/browse/' + enggStory.currentKey)  #{enggStory.summary} (#{enggStory.currentKey})
+              td
+                if enggStory.statusChanged
+                  if enggStory.statusAtIterationEnd == 'Done' || enggStory.statusAtIterationEnd == 'Accepted'
+                    span(style="background-color: #7ed529;") #{enggStory.statusAtIterationEnd}
+                  else
+                    span(style="background-color: #faf387;") #{enggStory.statusAtIterationEnd}
+                  span  (
+                  span(style="text-decoration: line-through;") #{enggStory.statusAtIterationStart}
+                  span )
+                else
+                  span #{enggStory.statusAtIterationStart}
+              td
+                if enggStory.fixVersionsChanged
+                  span(style="background-color: #faf387;")  #{enggStory.fixVersionsAtIterationEnd}
+                  span  (
+                  span(style="text-decoration: line-through;") #{enggStory.fixVersionsAtIterationStart}
+                  span )
+                else
+                  span  #{enggStory.fixVersionsAtIterationEnd}
+              td
+                span  Story Points:
+                if enggStory.storyPointsChanged
+                  span(style="background-color: #faf387;")  #{enggStory.storyPointsAtIterationEnd}
+                  span  (
+                  span(style="text-decoration: line-through;") #{enggStory.storyPointsAtIterationStart}
+                  span )
+                else
+                  span  #{enggStory.storyPointsAtIterationStart}
+              td
+                span  Queue Time:
+                span  #{enggStory.queueTime}
+              // td
+                span  Cycle Time:
+                span  #{enggStory.cycleTime}
+      br
+      br

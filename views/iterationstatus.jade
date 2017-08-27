@@ -29,7 +29,7 @@ block content
             |   #{ComboObj.pmstory.summary}
             span  [
             if ComboObj.pmstory.connectivityInvestment == 'Not Specified'
-              span.red #{ComboObj.pmstory.connectivityInvestment},
+              span(background-color='ffa07a') #{ComboObj.pmstory.connectivityInvestment},
             else
               span #{ComboObj.pmstory.connectivityInvestment},
             if ComboObj.pmstory.fixVersionMatches

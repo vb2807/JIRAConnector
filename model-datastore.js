@@ -19,6 +19,7 @@
 
 
 const JIRAConnector = require('./JIRAConnector.js');
+var https = require('https');
 
 const Datastore = require('@google-cloud/datastore');
 const config = require('./config');
@@ -364,6 +365,7 @@ function processOnlyPickedUpEnggStoriesForADuration (EnggEntities, iterationStar
         var scrums = null;
         var connectivityInvestmentBuckets = null;
         var connectivityInvestmentStoryPoints = null;
+        var connectivityInvestmentDoneStoryPoints = null;
 
         logger.debug('processEnggStoriesForADuration:EnggEntities:' + JSON.stringify(EnggEntities));
         logger.debug('processEnggStoriesForADuration:EnggEntities.length:' + EnggEntities.length);
@@ -488,22 +490,28 @@ function processOnlyPickedUpEnggStoriesForADuration (EnggEntities, iterationStar
                                         if (!connectivityInvestmentBuckets) {
                                             connectivityInvestmentBuckets = [specificComboObj.pmstory.connectivityInvestment];
                                             connectivityInvestmentStoryPoints = [specificComboObj.pmstory.storyPoints];
+                                            connectivityInvestmentDoneStoryPoints = [specificComboObj.pmstory.doneStoryPoints];
                                         }
                                         else if (connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment) == -1) {
                                             for (var connInvestIndex = 0; connInvestIndex < connectivityInvestmentBuckets.length; connInvestIndex++) {
                                                 if (connectivityInvestmentBuckets[connInvestIndex] > specificComboObj.pmstory.connectivityInvestment) {
                                                     connectivityInvestmentBuckets.splice(connInvestIndex, 0, specificComboObj.pmstory.connectivityInvestment);
                                                     connectivityInvestmentStoryPoints.splice(connInvestIndex, 0, specificComboObj.pmstory.storyPoints);
+                                                    connectivityInvestmentDoneStoryPoints.splice(connInvestIndex, 0, specificComboObj.pmstory.doneStoryPoints);
                                                     break;
                                                 }
                                                 else if(connInvestIndex == connectivityInvestmentBuckets.length - 1) {
                                                     connectivityInvestmentBuckets.push(specificComboObj.pmstory.connectivityInvestment);
                                                     connectivityInvestmentStoryPoints.push(specificComboObj.pmstory.storyPoints);
+                                                    connectivityInvestmentDoneStoryPoints.push(specificComboObj.pmstory.doneStoryPoints);
                                                     break;
                                                 }
                                             }
                                         }
-                                        else connectivityInvestmentStoryPoints[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] = connectivityInvestmentStoryPoints[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] + specificComboObj.pmstory.storyPoints;
+                                        else {
+                                            connectivityInvestmentStoryPoints[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] = connectivityInvestmentStoryPoints[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] + specificComboObj.pmstory.storyPoints;
+                                            connectivityInvestmentDoneStoryPoints[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] = connectivityInvestmentDoneStoryPoints[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] + specificComboObj.pmstory.doneStoryPoints;
+                                        }
                                     }
 
                                     count--;
@@ -511,7 +519,7 @@ function processOnlyPickedUpEnggStoriesForADuration (EnggEntities, iterationStar
                                     logger.debug('After buildSpecificComboObj(), scrums:' + JSON.stringify(scrums));
                                     logger.debug('After buildSpecificComboObj(), comboObj:' + JSON.stringify(comboObj));
 
-                                    if (count == 0) return cb(null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints);
+                                    if (count == 0) return cb(null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints);
                                 }
                             })
                         }
@@ -658,6 +666,7 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         PMStoryEntityData.storyAcceptedLastIteration = 0;
         PMStoryEntityData.connectivityInvestment = pmStoryData.connectivityInvestment ? pmStoryData.connectivityInvestment[0] : 'Not Specified';
         PMStoryEntityData.storyPoints = 0;
+        PMStoryEntityData.doneStoryPoints = 0;
         PMStoryEntityData.fixVersionMatches = true;
     }
 
@@ -843,8 +852,11 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
             if (storyCreatedPriorToThisIteration) PMStoryEntityData.totalStoriesLastIteration = PMStoryEntityData.totalStoriesLastIteration + 1;
             if (enggDataForComboObj.statusAtIterationEnd == 'Accepted') PMStoryEntityData.storyAcceptedThisIteration = PMStoryEntityData.storyAcceptedThisIteration + 1;
             if (enggDataForComboObj.statusAtIterationStart == 'Accepted') PMStoryEntityData.storyAcceptedLastIteration = PMStoryEntityData.storyAcceptedLastIteration + 1;
-            if (!isNaN(enggDataForComboObj.storyPointsAtIterationEnd) && enggStoriesPickedUpInIteration.indexOf(enggDataForComboObj.currentKey) != -1)
+            if (!isNaN(enggDataForComboObj.storyPointsAtIterationEnd) && enggStoriesPickedUpInIteration.indexOf(enggDataForComboObj.currentKey) != -1) {
                 PMStoryEntityData.storyPoints = PMStoryEntityData.storyPoints + parseInt(enggDataForComboObj.storyPointsAtIterationEnd);
+                if (enggDataForComboObj.statusAtIterationEnd == 'Done' || enggDataForComboObj.statusAtIterationEnd == 'Accepted')
+                    PMStoryEntityData.doneStoryPoints = PMStoryEntityData.doneStoryPoints + parseInt(enggDataForComboObj.storyPointsAtIterationEnd);
+            }
 
             // let's be sure each of the fixVersionsAtIterationEnd matches with fixVersion in PMStory
             for (let idxFixVersionLength = 0; idxFixVersionLength < fixVersionsAtIterationEnd.length && PMStoryEntityData.fixVersionMatches; idxFixVersionLength++) {
@@ -900,6 +912,105 @@ function _fetchComboObj (reportType, cb) {
     });
 }
 
+function _publishOnHarbor(iterations, html) {
+
+    // GET call to check if there is already a document. If so, retrieve it
+    // header for GET
+    var getheaders = {
+            'Authorization': 'Basic ' + new Buffer('vikas.bansal' + ':' + 'Iw2baw$2tmpf').toString('base64')
+    };
+
+    // options for GET
+    var optionsget = {
+        host : 'harbor.sailpoint.com', // here only the domain name
+        // (no http/https !)
+        port : 443,
+        path : '/api/core/v3/contents?filter=tag(' + encodeURIComponent(iterations[0].toLowerCase()) + ')', // the rest of the url with parameters if needed
+        method : 'GET', // do GET
+        headers: getheaders
+    };
+
+    logger.debug('Options prepared:');
+    logger.debug(optionsget);
+    logger.debug('Do the GET call');
+
+    var contentID = null;
+    // do the GET request
+    var reqGet = https.request(optionsget, function(res) {
+        // uncomment it for header details
+        //  console.log("headers: ", res.headers);
+        var getResponse = null;
+        res.on('data', function(d) {
+            logger.debug('GET result:\n');
+            getResponse = getResponse ? getResponse + d.toString() : d.toString();
+            // process.stdout.write(d);
+            logger.debug('\n\nCall completed:' + getResponse);
+        });
+
+        res.on('end', function() {
+            getResponse = getResponse.substring(getResponse.indexOf('{'));
+            if (JSON.parse(getResponse).list.length > 0) {
+                contentID = JSON.parse(getResponse).list[0].contentID;
+            }
+
+            // do a POST request
+            // create the JSON object
+
+            var jsonObject = JSON.stringify({
+                "type": "document",
+                "subject": 'Connectivity Health: ' + iterations[0],
+                "visibility": "hidden",
+                "content": {
+                    "type": "text/html",
+                    "text": html
+                },
+                "tags": [iterations[0]]
+            });
+
+            // prepare the header
+            var postheaders = {
+                'Content-Type' : 'application/json',
+                'Content-Length' : Buffer.byteLength(jsonObject, 'utf8'),
+                'Authorization': 'Basic ' + new Buffer('vikas.bansal' + ':' + 'Iw2baw$2tmpf').toString('base64')
+            };
+
+            // the post options
+            var optionspost = {
+                host : 'harbor.sailpoint.com',
+                port : 443,
+                path : contentID ? ('/api/core/v3/contents/' + contentID) : '/api/core/v3/contents',
+                method : contentID ? 'PUT' : 'POST',
+                headers : postheaders
+            };
+
+            // do the POST call
+            var reqPost = https.request(optionspost, function(res) {
+                logger.debug("statusCode: ", res.statusCode);
+                // uncomment it for header details
+                //  console.log("headers: ", res.headers);
+
+                res.on('data', function(d) {
+                    logger.debug('POST result:\n');
+                    // process.stdout.write(d);
+                    logger.debug('\n\nPOST completed');
+                });
+            });
+            // write the json data
+            reqPost.write(jsonObject);
+            reqPost.end();
+            reqPost.on('error', function(e) {
+                logger.error(e);
+            });
+        });
+
+    });
+
+    reqGet.end();
+    reqGet.on('error', function(e) {
+        console.error(e);
+    });
+}
+
 function _fetchIterationView (reportType, flagOnlyEnggStoriesPickedUpInIteration, cb) {
     _getIterationsAndStartEndDates(reportType, (err, iterations, startDateMsec, endDateMsec) => {
         asyncFetchEnggStoriesForADuration (iterations, (err, enggEntitiesChangedinIterations) => {
@@ -909,12 +1020,12 @@ function _fetchIterationView (reportType, flagOnlyEnggStoriesPickedUpInIteration
             }
             else {
                 logger.debug('asyncFetchEnggStoriesForADuration complete. enggStories:' + JSON.stringify(enggEntitiesChangedinIterations))
-                processOnlyPickedUpEnggStoriesForADuration(enggEntitiesChangedinIterations, startDateMsec, endDateMsec, flagOnlyEnggStoriesPickedUpInIteration, (err, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints) => {
+                processOnlyPickedUpEnggStoriesForADuration(enggEntitiesChangedinIterations, startDateMsec, endDateMsec, flagOnlyEnggStoriesPickedUpInIteration, (err, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints) => {
                     if (err) {
                         logger.error('asyncFetchEnggStoriesForADuration: Error: ' + err);
                         return cb (err, null, null);
                     }
-                    else return cb (null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints);
+                    else return cb (null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, iterations, startDateMsec, endDateMsec);
                 });
             }
         });
@@ -1100,6 +1211,26 @@ function getIterationsEndingAfterASpecificTime(specificTimeMsec, cb) {
     });
 }
 
+function _getPMStoriesChangedBetween(startDateMsec, endDateMsec, token, cb) {
+    var limit = 50;
+    const q = ds.createQuery(['PMStory'])
+        .filter('updatedMsec', '>', startDateMsec)
+        .limit(limit)
+        .start(token);
+
+    ds.runQuery(q, (err, entities, nextQuery) => {
+        if (err) {
+            logger.error(err);
+            return cb(err, null);
+        }
+        if (!entities) {
+            return cb('Something wrong. Could not get PMStories', null);
+        }
+        const hasMore = nextQuery.moreResults !== Datastore.NO_MORE_RESULTS ? nextQuery.endCursor : false;
+        return cb(null, entities.map(fromDatastore), hasMore);
+    });
+}
+
 function asyncDeleteEnggStories (pmstoryid, cb) {
     console.log('asyncDeleteEnggStories:' + pmstoryid);
     const PMStoryKey = ds.key(['PMStories', parseInt(pmstoryid, 10)]);
@@ -1224,6 +1355,23 @@ function fetchEnggEntities (cb) {
     //.limit(limit);
     //.order('title')
     //.start(token);
+
+    ds.runQuery(q, (err, entities, nextQuery) => {
+        if (err) {
+            cb(err);
+            return;
+        }
+        const hasMore = nextQuery.moreResults !== Datastore.NO_MORE_RESULTS ? nextQuery.endCursor : false;
+        cb(null, entities, hasMore);
+    });
+}
+
+function _getReadyReadyEnggStories (token, cb) {
+    var limit = 50;
+    const q = ds.createQuery(['EnggStory'])
+        .filter('currentStatus', '=', 'Open')
+        .limit(limit)
+        .start(token);
 
     ds.runQuery(q, (err, entities, nextQuery) => {
         if (err) {
@@ -1716,7 +1864,10 @@ module.exports = {
     getIterationNameAndDates: _getIterationNameAndDates,
     getIterationsAndStartEndDates: _getIterationsAndStartEndDates,
     fetchIterationView: _fetchIterationView,
-    twoWksInMsec
+    twoWksInMsec,
+    publishOnHarbor: _publishOnHarbor,
+    getReadyReadyEnggStories: _getReadyReadyEnggStories,
+    getPMStoriesChangedBetween: _getPMStoriesChangedBetween
 };
 // [END exports]
 
