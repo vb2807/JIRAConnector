@@ -32,7 +32,7 @@ const logger = new (winston.Logger)({
     ]
 });
 
-logger.level = 'info';
+logger.level = 'debug';
 
 
 var pageCounter;
@@ -181,7 +181,7 @@ process.argv.forEach(function (val, index, array) {
     }
 
     if (val == 'publishHarborReport') {
-        publishHarborReport('iteration');
+        publishHarborReport(array[index + 1]);
         return;
     }
     if (val == 'getPMStoryChanges') {
@@ -204,7 +204,7 @@ process.argv.forEach(function (val, index, array) {
 
 function publishHarborReport(reportType ){
 
-    getModel().fetchIterationView(reportType, true, (err, scrums, comboObjs, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, iterations, startDateMsec, endDateMsec) => {
+    getModel().fetchIterationView(reportType, false, (err, scrums, comboObjs, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories, iterations, startDateMsec, endDateMsec) => {
         if (err) {
             logger.error(err);
             return;
@@ -220,6 +220,8 @@ function publishHarborReport(reportType ){
             logger.debug('scrums:' + JSON.stringify(scrums));
             logger.debug('connectivityInvestmentBuckets:' + JSON.stringify(connectivityInvestmentBuckets));
             logger.debug('connectivityInvestmentStoryPoints:' + JSON.stringify(connectivityInvestmentStoryPoints));
+            logger.debug('connectivityInvestmentCountStories:' + JSON.stringify(connectivityInvestmentCountStories));
+            logger.debug('connectivityInvestmentCountDoneStories:' + JSON.stringify(connectivityInvestmentCountDoneStories));
             /*
              comboObjs.forEach((x) => {
              console.log('x:' + JSON.stringify(x));
@@ -233,7 +235,7 @@ function publishHarborReport(reportType ){
 
              });
              */
-            _getGroomingHealth((err, groomingScrums, groomingHealthEngg, groomingHealthPM) => {
+            _getGroomingHealth((err, groomingScrums, groomingHealthEngg, groomingHealthPM, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed) => {
                 console.log('groomingScrums:' + JSON.stringify(groomingScrums));
                 console.log('groomingHealthEngg:' + JSON.stringify(groomingHealthEngg));
                 console.log('groomingHealthPM:' + JSON.stringify(groomingHealthPM));
@@ -243,12 +245,16 @@ function publishHarborReport(reportType ){
                         groomingScrums: groomingScrums,
                         groomingHealthEngg: groomingHealthEngg,
                         groomingHealthPM: groomingHealthPM,
+                        groomingHealthCountStories: groomingHealthCountStories,
+                        groomingHealthCountStoriesPMReviewed: groomingHealthCountStoriesPMReviewed,
                         changedPMStories: changedPMStories,
                         scrums: scrums,
                         ComboObjs: comboObjs,
                         connectivityInvestmentBuckets: connectivityInvestmentBuckets,
                         connectivityInvestmentStoryPoints: connectivityInvestmentStoryPoints,
-                        connectivityInvestmentDoneStoryPoints: connectivityInvestmentDoneStoryPoints
+                        connectivityInvestmentDoneStoryPoints: connectivityInvestmentDoneStoryPoints,
+                        connectivityInvestmentCountStories: connectivityInvestmentCountStories,
+                        connectivityInvestmentCountDoneStories: connectivityInvestmentCountDoneStories
                     }, function (err, html) {
                         if (err) {
                             logger.error('express().render(harboriterationstatus.jade):' + err);
@@ -1012,11 +1018,11 @@ function searchComplete(updateTime, JIRAProjects) {
     });
 }
 
-function processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHealthPMReviewed, token, cb) {
-    getModel().getReadyReadyEnggStories(token, (err, entities, hasMore) => {
+function processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed, enggStoryStatus, token, cb) {
+    getModel().getReadyReadyEnggStories(enggStoryStatus, token, (err, entities, hasMore) => {
         if (err) {
             logger.error(err);
-            return cb(err, scrums, groomingHealthEngg, groomingHealthPMReviewed);
+            return cb(err, scrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed);
         }
         for (var i = 0; i < entities.length; i++) {
             console.log('entities[' + i + '].data.scrum:' + entities[i].data.scrum);
@@ -1025,7 +1031,9 @@ function processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHe
             if (!scrums && !groomingHealthEngg && !groomingHealthPMReviewed) {
                 scrums = [entities[i].data.scrum];
                 groomingHealthEngg = entities[i].data.storyPoints ? [parseInt(entities[i].data.storyPoints, 10)] : [0];
+                groomingHealthCountStories = [1];
                 groomingHealthPMReviewed = (entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? [parseInt(entities[i].data.storyPoints, 10)] : [0];
+                groomingHealthCountStoriesPMReviewed = (entities[i].data.acceptanceReviewedByPM == 'Yes') ? [1] : [0];
             }
             else {
                 var scrumIndex = scrums.indexOf(entities[i].data.scrum);
@@ -1033,21 +1041,27 @@ function processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHe
                     for (var scrumOrder = 0; scrumOrder < scrums.length; scrumOrder++) {
                         if (scrums[scrumOrder] > entities[i].data.scrum) {
                             scrums.splice(scrumOrder, 0, entities[i].data.scrum);
-                            groomingHealthEngg.splice(scrumOrder, 0, entities[i].data.storyPoints ? [parseInt(entities[i].data.storyPoints, 10)] : [0]);
-                            groomingHealthPMReviewed.splice(scrumOrder, 0, (entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? [parseInt(entities[i].data.storyPoints, 10)] : [0]);
+                            groomingHealthEngg.splice(scrumOrder, 0, entities[i].data.storyPoints ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                            groomingHealthCountStories.splice(scrumOrder, 0, 1);
+                            groomingHealthPMReviewed.splice(scrumOrder, 0, (entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                            groomingHealthCountStoriesPMReviewed.splice(scrumOrder, 0, entities[i].data.acceptanceReviewedByPM == 'Yes' ? 1 : 0);
                             break;
                         }
                         else if (scrumOrder == scrums.length - 1) {
                             scrums.push(entities[i].data.scrum);
-                            groomingHealthEngg.push(entities[i].data.storyPoints ? [parseInt(entities[i].data.storyPoints, 10)] : [0]);
-                            groomingHealthPMReviewed.push((entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? [parseInt(entities[i].data.storyPoints, 10)] : [0]);
+                            groomingHealthEngg.push(entities[i].data.storyPoints ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                            groomingHealthCountStories.push(1);
+                            groomingHealthPMReviewed.push((entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                            groomingHealthCountStoriesPMReviewed.push(1);
                             break;
                         }
                     }
                 }
                 else {
                     groomingHealthEngg[scrumIndex] = parseInt(groomingHealthEngg[scrumIndex], 10) + (entities[i].data.storyPoints ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                    groomingHealthCountStories[scrumIndex]++;
                     groomingHealthPMReviewed[scrumIndex] = parseInt(groomingHealthPMReviewed[scrumIndex], 10) + ((entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                    if (entities[i].data.acceptanceReviewedByPM == 'Yes') groomingHealthCountStoriesPMReviewed[scrumIndex]++;
                 }
             }
         }
@@ -1055,8 +1069,8 @@ function processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHe
         console.log('groomingHealthEngg:' + JSON.stringify(groomingHealthEngg));
         console.log('groomingHealthPMReviewed:' + JSON.stringify(groomingHealthPMReviewed));
 
-        if (!hasMore) return cb (null, scrums, groomingHealthEngg, groomingHealthPMReviewed);
-        else return processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHealthPMReviewed, hasMore, cb);
+        if (!hasMore) return cb (null, scrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed);
+        else return processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed, enggStoryStatus, hasMore, cb);
     });
 }
 
@@ -1065,9 +1079,15 @@ function _getGroomingHealth(cb) {
     var groomingScrums = null;
     var groomingHealthEngg = null;
     var groomingHealthPMReviewed = null;
+    var groomingHealthCountStories = null;
+    var groomingHealthCountStoriesPMReviewed = null;
+    var enggStoryStatus = 'Open';
 
-    processEntitiesForGroomingHealth(groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, token, (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed) => {
-        return cb (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed);
+    processEntitiesForGroomingHealth(groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed, enggStoryStatus, token, (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed) => {
+        enggStoryStatus = 'In Progress';
+        processEntitiesForGroomingHealth(groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed, enggStoryStatus, token, (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed) => {
+            return cb(err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed);
+        });
     });
 }
 

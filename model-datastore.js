@@ -365,7 +365,9 @@ function processOnlyPickedUpEnggStoriesForADuration (EnggEntities, iterationStar
         var scrums = null;
         var connectivityInvestmentBuckets = null;
         var connectivityInvestmentStoryPoints = null;
+        var connectivityInvestmentCountStories = null;
         var connectivityInvestmentDoneStoryPoints = null;
+        var connectivityInvestmentCountDoneStories = null;
 
         logger.debug('processEnggStoriesForADuration:EnggEntities:' + JSON.stringify(EnggEntities));
         logger.debug('processEnggStoriesForADuration:EnggEntities.length:' + EnggEntities.length);
@@ -490,20 +492,26 @@ function processOnlyPickedUpEnggStoriesForADuration (EnggEntities, iterationStar
                                         if (!connectivityInvestmentBuckets) {
                                             connectivityInvestmentBuckets = [specificComboObj.pmstory.connectivityInvestment];
                                             connectivityInvestmentStoryPoints = [specificComboObj.pmstory.storyPoints];
+                                            connectivityInvestmentCountStories = [specificComboObj.pmstory.countStoriesThisIteration];
                                             connectivityInvestmentDoneStoryPoints = [specificComboObj.pmstory.doneStoryPoints];
+                                            connectivityInvestmentCountDoneStories = [specificComboObj.pmstory.storiesDoneThisIteration];
                                         }
                                         else if (connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment) == -1) {
                                             for (var connInvestIndex = 0; connInvestIndex < connectivityInvestmentBuckets.length; connInvestIndex++) {
                                                 if (connectivityInvestmentBuckets[connInvestIndex] > specificComboObj.pmstory.connectivityInvestment) {
                                                     connectivityInvestmentBuckets.splice(connInvestIndex, 0, specificComboObj.pmstory.connectivityInvestment);
                                                     connectivityInvestmentStoryPoints.splice(connInvestIndex, 0, specificComboObj.pmstory.storyPoints);
+                                                    connectivityInvestmentCountStories.splice(connInvestIndex, 0, specificComboObj.pmstory.countStoriesThisIteration);
                                                     connectivityInvestmentDoneStoryPoints.splice(connInvestIndex, 0, specificComboObj.pmstory.doneStoryPoints);
+                                                    connectivityInvestmentCountDoneStories.splice(connInvestIndex, 0, specificComboObj.pmstory.storiesDoneThisIteration);
                                                     break;
                                                 }
                                                 else if(connInvestIndex == connectivityInvestmentBuckets.length - 1) {
                                                     connectivityInvestmentBuckets.push(specificComboObj.pmstory.connectivityInvestment);
                                                     connectivityInvestmentStoryPoints.push(specificComboObj.pmstory.storyPoints);
+                                                    connectivityInvestmentCountStories.push(specificComboObj.pmstory.countStoriesThisIteration);
                                                     connectivityInvestmentDoneStoryPoints.push(specificComboObj.pmstory.doneStoryPoints);
+                                                    connectivityInvestmentCountDoneStories.push(specificComboObj.pmstory.storiesDoneThisIteration);
                                                     break;
                                                 }
                                             }
@@ -511,6 +519,8 @@ function processOnlyPickedUpEnggStoriesForADuration (EnggEntities, iterationStar
                                         else {
                                             connectivityInvestmentStoryPoints[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] = connectivityInvestmentStoryPoints[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] + specificComboObj.pmstory.storyPoints;
                                             connectivityInvestmentDoneStoryPoints[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] = connectivityInvestmentDoneStoryPoints[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] + specificComboObj.pmstory.doneStoryPoints;
+                                            connectivityInvestmentCountStories[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] = connectivityInvestmentCountStories[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] + specificComboObj.pmstory.countStoriesThisIteration;
+                                            connectivityInvestmentCountDoneStories[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] = connectivityInvestmentCountDoneStories[connectivityInvestmentBuckets.indexOf(specificComboObj.pmstory.connectivityInvestment)] + specificComboObj.pmstory.storiesDoneThisIteration;
                                         }
                                     }
 
@@ -519,7 +529,7 @@ function processOnlyPickedUpEnggStoriesForADuration (EnggEntities, iterationStar
                                     logger.debug('After buildSpecificComboObj(), scrums:' + JSON.stringify(scrums));
                                     logger.debug('After buildSpecificComboObj(), comboObj:' + JSON.stringify(comboObj));
 
-                                    if (count == 0) return cb(null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints);
+                                    if (count == 0) return cb(null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories);
                                 }
                             })
                         }
@@ -652,6 +662,8 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
 
     var comboObjEnggstories = [];
     var PMStoryEntityData = null;
+    // index used to order the stories i.e. to first display engg stories picked up in this iteration, followed by other engg stories attached to PMStory but not picked up in this iteration
+    var lastIndexStoriesPickedUpInThisIteration = 0;
 
     if (pmStoryData) {
         PMStoryEntityData = {};
@@ -661,8 +673,10 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         PMStoryEntityData.status = pmStoryData.status;
         PMStoryEntityData.fixVersion = pmStoryData.fixVersion.length > 0 ? pmStoryData.fixVersion : ['Not Specified'];
         PMStoryEntityData.totalStoriesThisIteration = 0;
+        PMStoryEntityData.countStoriesThisIteration = 0;
         PMStoryEntityData.totalStoriesLastIteration = 0;
         PMStoryEntityData.storyAcceptedThisIteration = 0;
+        PMStoryEntityData.storiesDoneThisIteration = 0;
         PMStoryEntityData.storyAcceptedLastIteration = 0;
         PMStoryEntityData.connectivityInvestment = pmStoryData.connectivityInvestment ? pmStoryData.connectivityInvestment[0] : 'Not Specified';
         PMStoryEntityData.storyPoints = 0;
@@ -689,6 +703,7 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         enggDataForComboObj = {};
         enggDataForComboObj.currentKey = entityData.currentKey;
         enggDataForComboObj.summary = entityData.summary;
+        enggDataForComboObj.acceptanceReviewedByPM = entityData.acceptanceReviewedByPM;
 
         var storyCreatedPriorToThisIteration = false;
 
@@ -836,8 +851,18 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
 
 
         logger.debug('enggDataForComboObj' + JSON.stringify(enggDataForComboObj));
-        if (!flagOnlyEnggStoriesPickedUpInIteration || enggStoriesPickedUpInIteration.indexOf(enggDataForComboObj.currentKey) != -1) {
-            comboObjEnggstories.push(enggDataForComboObj);
+        if (enggStoriesPickedUpInIteration.indexOf(enggDataForComboObj.currentKey) != -1) enggDataForComboObj.pickedUpInThisIteration = true;
+        else enggDataForComboObj.pickedUpInThisIteration = false;
+
+        if (!flagOnlyEnggStoriesPickedUpInIteration || enggDataForComboObj.pickedUpInThisIteration) {
+            if (enggDataForComboObj.pickedUpInThisIteration) {
+                comboObjEnggstories.splice(lastIndexStoriesPickedUpInThisIteration, 0, enggDataForComboObj);
+                lastIndexStoriesPickedUpInThisIteration++;
+            }
+            else {
+                comboObjEnggstories.push(enggDataForComboObj);
+            }
+
             if (pmStoryData) {
                 if (!scrum) scrum = entityData.scrum;
                 else if (scrum.indexOf(entityData.scrum) == -1) scrum = scrum + ', ' + entityData.scrum;
@@ -850,12 +875,17 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         if (pmStoryData){
             PMStoryEntityData.totalStoriesThisIteration = PMStoryEntityData.totalStoriesThisIteration + 1;
             if (storyCreatedPriorToThisIteration) PMStoryEntityData.totalStoriesLastIteration = PMStoryEntityData.totalStoriesLastIteration + 1;
-            if (enggDataForComboObj.statusAtIterationEnd == 'Accepted') PMStoryEntityData.storyAcceptedThisIteration = PMStoryEntityData.storyAcceptedThisIteration + 1;
+            if (enggDataForComboObj.statusAtIterationEnd == 'Accepted') {
+                PMStoryEntityData.storyAcceptedThisIteration = PMStoryEntityData.storyAcceptedThisIteration + 1;
+            }
             if (enggDataForComboObj.statusAtIterationStart == 'Accepted') PMStoryEntityData.storyAcceptedLastIteration = PMStoryEntityData.storyAcceptedLastIteration + 1;
             if (!isNaN(enggDataForComboObj.storyPointsAtIterationEnd) && enggStoriesPickedUpInIteration.indexOf(enggDataForComboObj.currentKey) != -1) {
                 PMStoryEntityData.storyPoints = PMStoryEntityData.storyPoints + parseInt(enggDataForComboObj.storyPointsAtIterationEnd);
-                if (enggDataForComboObj.statusAtIterationEnd == 'Done' || enggDataForComboObj.statusAtIterationEnd == 'Accepted')
+                PMStoryEntityData.countStoriesThisIteration++;
+                if (enggDataForComboObj.statusAtIterationEnd == 'Done' || enggDataForComboObj.statusAtIterationEnd == 'Accepted') {
                     PMStoryEntityData.doneStoryPoints = PMStoryEntityData.doneStoryPoints + parseInt(enggDataForComboObj.storyPointsAtIterationEnd);
+                    PMStoryEntityData.storiesDoneThisIteration++;
+                }
             }
 
             // let's be sure each of the fixVersionsAtIterationEnd matches with fixVersion in PMStory
@@ -1020,12 +1050,12 @@ function _fetchIterationView (reportType, flagOnlyEnggStoriesPickedUpInIteration
             }
             else {
                 logger.debug('asyncFetchEnggStoriesForADuration complete. enggStories:' + JSON.stringify(enggEntitiesChangedinIterations))
-                processOnlyPickedUpEnggStoriesForADuration(enggEntitiesChangedinIterations, startDateMsec, endDateMsec, flagOnlyEnggStoriesPickedUpInIteration, (err, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints) => {
+                processOnlyPickedUpEnggStoriesForADuration(enggEntitiesChangedinIterations, startDateMsec, endDateMsec, flagOnlyEnggStoriesPickedUpInIteration, (err, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories) => {
                     if (err) {
                         logger.error('asyncFetchEnggStoriesForADuration: Error: ' + err);
                         return cb (err, null, null);
                     }
-                    else return cb (null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, iterations, startDateMsec, endDateMsec);
+                    else return cb (null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories, iterations, startDateMsec, endDateMsec);
                 });
             }
         });
@@ -1366,10 +1396,10 @@ function fetchEnggEntities (cb) {
     });
 }
 
-function _getReadyReadyEnggStories (token, cb) {
+function _getReadyReadyEnggStories (enggStoryStatus, token, cb) {
     var limit = 50;
     const q = ds.createQuery(['EnggStory'])
-        .filter('currentStatus', '=', 'Open')
+        .filter('currentStatus', '=', enggStoryStatus)
         .limit(limit)
         .start(token);
 

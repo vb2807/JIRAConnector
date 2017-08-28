@@ -1,5 +1,4 @@
 {
-  // "GCLOUD_PROJECT": "dev-jiraconnector",
-  "GCLOUD_PROJECT": "jiraconnector-177113",
+  "GCLOUD_PROJECT": "dev-jiraconnector",
   "DATA_BACKEND": "datastore"
 }

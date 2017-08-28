@@ -15,40 +15,58 @@ extends ./baseHarbor.jade
 
 block content
   h1(style="text-align: left;") Grooming Health
+  p
+    span(style="font-size: 8pt;") Story count for all engg user stories in status 'Open' and 'In Progress'. # Stories (PM Reviewed) shows count of engg stories whose acceptance criteria is agreed between PM and scrum master.
   table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
     tbody
       tr
         td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Scrum
-        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Story Points
-        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Story Points (PM Reviewed)
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories (PM Reviewed)
       each groomingScrum, index in groomingScrums
         tr
           td(style="padding: 6px;")
             span #{groomingScrum}
           td(style="padding: 6px;")
-            span #{groomingHealthEngg[index]}
+            span #{groomingHealthCountStories[index]}
+            // span  (
+            // span #{groomingHealthEngg[index]}
+            // span )
           td(style="padding: 6px;")
-            span #{groomingHealthPM[index]}
+            span #{groomingHealthCountStoriesPMReviewed[index]}
+            // span  (
+            // span #{groomingHealthPM[index]}
+            // span )
   br
   br
   h1(style="text-align: left;") Connectivity Investment
+  p
+    span(style="font-size: 8pt;") Investment Bucket wise distribution of engg user stories picked up in this iteration i.e. *** pre-fixed in engg stories in 'Stories Health' below. # Stories (Planned) is count of engg stories planned in this iteration. # Stories (Done) is count of engg stories in 'Done' status as on date.
   table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
     tbody
       tr
         td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Investment Bucket
-        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Story Points (Planned)
-        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Story Points (Done)
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories (Planned)
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories (Done)
       each investmentBucket, index in connectivityInvestmentBuckets
         tr
           td(style="padding: 6px;")
             span #{investmentBucket}
           td(style="padding: 6px;")
-            span #{connectivityInvestmentStoryPoints[index]}
+            span #{connectivityInvestmentCountStories[index]}
+            // span  (
+            // span #{connectivityInvestmentStoryPoints[index]}
+            // span )
           td(style="padding: 6px;")
-            span #{connectivityInvestmentDoneStoryPoints[index]}
+            span #{connectivityInvestmentCountDoneStories[index]}
+            // span  (
+            // span #{connectivityInvestmentDoneStoryPoints[index]}
+            // span )
   br
   br
   h1(style="text-align: left;") PMStory Changes
+  p
+    span(style="font-size: 8pt;") This table shows the status changes for PM Stories in the CONPM project.
   table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
     tbody
       tr
@@ -69,6 +87,8 @@ block content
   br
   br
   h1(style="text-align: center;") Stories Health
+  p
+    span(style="font-size: 8pt;") (Scrumwise engg stories picked up in this iteration and their corresponding PMStory. Green highlighed shows accomplishments, yellow shows changes. Blue shows an error, and PMStory must be updated to fix it. *** are engg stories picked up in this iteration)
   - var scrumCount = -1;
   each scrum in scrums
     - scrumCount++;
@@ -122,8 +142,12 @@ block content
           each enggStory in ComboObj.enggstories
             tr
               td(style="padding: 6px;")
+                if enggStory.pickedUpInThisIteration
+                  span ***
                 span
                   a(href='https://sailpoint.atlassian.net/browse/' + enggStory.currentKey)  #{enggStory.summary} (#{enggStory.currentKey})
+                if enggStory.acceptanceReviewedByPM == 'No'
+                  span(style="background-color: #2873ee; color: #303030;") Acceptance criteria NOT reviewed by PM
               td
                 if enggStory.statusChanged
                   if enggStory.statusAtIterationEnd == 'Done' || enggStory.statusAtIterationEnd == 'Accepted'
