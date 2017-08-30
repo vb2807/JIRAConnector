@@ -61,18 +61,18 @@ block content
   br
   h1(style="text-align: left;") Connectivity Investment
   p
-    span(style="font-size: 10pt;") Investment Bucket wise distribution of engg user stories picked up in this iteration i.e. *** pre-fixed in engg stories in 'Stories Health' below. # Stories (Planned) is count of engg stories planned in this iteration. # Stories (Done) is count of engg stories in 'Done' status as on date.
+    span(style="font-size: 10pt;") Investment Bucket wise distribution of engg user stories Done or Accepted in this iteration. This data will be useful for Product Council.
   table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
     tbody
       tr
         td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Investment Bucket
-        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories (Planned)
+        // td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories (Planned)
         td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories (Done)
       each investmentBucket, index in connectivityInvestmentBuckets
         tr
           td(style="padding: 6px;")
             span #{investmentBucket}
-          td(style="padding: 6px;")
+          //td(style="padding: 6px;")
             span #{connectivityInvestmentCountStories[index]}
             // span  (
             // span #{connectivityInvestmentStoryPoints[index]}
@@ -86,7 +86,7 @@ block content
   br
   h1(style="text-align: left;") PMStory Changes
   p
-    span(style="font-size: 10pt;") This table shows the status changes for PM Stories in the CONPM project.
+    span(style="font-size: 10pt;") PMStory status changes in this iteration.
   table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
     tbody
       tr
