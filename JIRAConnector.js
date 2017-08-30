@@ -592,7 +592,7 @@ function getPMStoryKey(specificIssue, cb) {
     else {
         for (var indexLink = 0; indexLink < specificIssue.fields.issuelinks.length; indexLink++) {
             var specificIssueLink = specificIssue.fields.issuelinks[indexLink];
-            if (specificIssueLink.inwardIssue && (specificIssueLink.type.inward.toLowerCase() == 'is caused by' || specificIssueLink.type.inward.toLowerCase() == 'relates to')) {
+            if (specificIssueLink.inwardIssue && (specificIssueLink.type.inward.toLowerCase() == 'is caused by' || specificIssueLink.type.inward.toLowerCase() == 'relates to') && specificIssueLink.inwardIssue.key.startsWith('CONPM')) {
                 PMStoryKey = specificIssueLink.inwardIssue.key;
                 PMStoryID = specificIssueLink.inwardIssue.id;
                 return cb(null, PMStoryID, PMStoryKey);
@@ -1086,6 +1086,24 @@ function _getGroomingHealth(cb) {
     processEntitiesForGroomingHealth(groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed, enggStoryStatus, token, (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed) => {
         enggStoryStatus = 'In Progress';
         processEntitiesForGroomingHealth(groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed, enggStoryStatus, token, (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed) => {
+            var sumGroomingHealthEngg = 0;
+            var sumGroomingHealthPMReviewed = 0;
+            var sumGroomingHealthCountStories = 0;
+            var sumGroomingHealthCountStoriesPMReviewed = 0;
+
+            for (var i = 0; i < groomingScrums.length; i++) {
+                sumGroomingHealthEngg = sumGroomingHealthEngg + groomingHealthEngg[i];
+                sumGroomingHealthPMReviewed = sumGroomingHealthPMReviewed + groomingHealthPMReviewed[i];
+                sumGroomingHealthCountStories = sumGroomingHealthCountStories + groomingHealthCountStories[i];
+                sumGroomingHealthCountStoriesPMReviewed = sumGroomingHealthCountStoriesPMReviewed + groomingHealthCountStoriesPMReviewed[i];
+            }
+            if (groomingScrums) {
+                groomingScrums.push('Average');
+                groomingHealthEngg.push(parseInt(sumGroomingHealthEngg/groomingScrums.length, 10));
+                groomingHealthPMReviewed.push(parseInt(sumGroomingHealthPMReviewed/groomingScrums.length, 10));
+                groomingHealthCountStories.push(parseInt(sumGroomingHealthCountStories/groomingScrums.length, 10));
+                groomingHealthCountStoriesPMReviewed.push(parseInt(sumGroomingHealthCountStoriesPMReviewed/groomingScrums.length, 10));
+            }
             return cb(err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed);
         });
     });

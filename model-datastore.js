@@ -988,7 +988,7 @@ function _publishOnHarbor(iterations, html) {
 
             var jsonObject = JSON.stringify({
                 "type": "document",
-                "subject": 'Connectivity Health: ' + iterations[0],
+                "subject": 'Connectivity Update: ' + iterations[0],
                 "visibility": "hidden",
                 "content": {
                     "type": "text/html",
@@ -1245,6 +1245,7 @@ function _getPMStoriesChangedBetween(startDateMsec, endDateMsec, token, cb) {
     var limit = 50;
     const q = ds.createQuery(['PMStory'])
         .filter('updatedMsec', '>', startDateMsec)
+        .filter('updatedMsec', '<=', endDateMsec)
         .limit(limit)
         .start(token);
 

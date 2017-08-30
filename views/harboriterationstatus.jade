@@ -16,7 +16,7 @@ extends ./baseHarbor.jade
 block content
   h1(style="text-align: left;") Grooming Health
   p
-    span(style="font-size: 8pt;") Story count for all engg user stories in status 'Open' and 'In Progress'. # Stories (PM Reviewed) shows count of engg stories whose acceptance criteria is agreed between PM and scrum master.
+    span(style="font-size: 10pt;") Story count for all engg user stories in status 'Open' and 'In Progress'. # Stories (PM Reviewed) shows count of engg stories whose acceptance criteria is agreed between PM and scrum master. If count is >=8 then it's green, if count is between 8 and 4 then yellow else it's red.
   table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
     tbody
       tr
@@ -25,23 +25,43 @@ block content
         td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories (PM Reviewed)
       each groomingScrum, index in groomingScrums
         tr
-          td(style="padding: 6px;")
-            span #{groomingScrum}
-          td(style="padding: 6px;")
-            span #{groomingHealthCountStories[index]}
-            // span  (
-            // span #{groomingHealthEngg[index]}
-            // span )
-          td(style="padding: 6px;")
-            span #{groomingHealthCountStoriesPMReviewed[index]}
-            // span  (
-            // span #{groomingHealthPM[index]}
-            // span )
+          if groomingScrum == 'Average'
+            td(style="text-align: center;background-color: #f2f2f2;padding: 6px;")
+              span #{groomingScrum}
+          else
+            td(style="padding: 6px;")
+              span #{groomingScrum}
+            // td(style="padding: 6px;")
+          if groomingHealthCountStories[index] >= 8
+            td(style="padding: 6px;background-color: #7ed529;")
+              span #{groomingHealthCountStories[index]}
+          else if groomingHealthCountStories[index] >= 4
+            td(style="padding: 6px;background-color: #faf387;")
+              span #{groomingHealthCountStories[index]}
+          else
+            td(style="padding: 6px;background-color: #e23d39;")
+              span #{groomingHealthCountStories[index]}
+              // span  (
+              // span #{groomingHealthEngg[index]}
+              // span )
+              // td(style="padding: 6px;")
+          if groomingHealthCountStoriesPMReviewed[index] >= 8
+            td(style="padding: 6px;background-color: #7ed529;")
+              span #{groomingHealthCountStoriesPMReviewed[index]}
+          else if groomingHealthCountStoriesPMReviewed[index] >= 4
+            td(style="padding: 6px;background-color: #faf387;")
+              span #{groomingHealthCountStoriesPMReviewed[index]}
+          else
+            td(style="padding: 6px;background-color: #e23d39;")
+              span #{groomingHealthCountStoriesPMReviewed[index]}
+              // span  (
+              // span #{groomingHealthPM[index]}
+              // span )
   br
   br
   h1(style="text-align: left;") Connectivity Investment
   p
-    span(style="font-size: 8pt;") Investment Bucket wise distribution of engg user stories picked up in this iteration i.e. *** pre-fixed in engg stories in 'Stories Health' below. # Stories (Planned) is count of engg stories planned in this iteration. # Stories (Done) is count of engg stories in 'Done' status as on date.
+    span(style="font-size: 10pt;") Investment Bucket wise distribution of engg user stories picked up in this iteration i.e. *** pre-fixed in engg stories in 'Stories Health' below. # Stories (Planned) is count of engg stories planned in this iteration. # Stories (Done) is count of engg stories in 'Done' status as on date.
   table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
     tbody
       tr
@@ -66,7 +86,7 @@ block content
   br
   h1(style="text-align: left;") PMStory Changes
   p
-    span(style="font-size: 8pt;") This table shows the status changes for PM Stories in the CONPM project.
+    span(style="font-size: 10pt;") This table shows the status changes for PM Stories in the CONPM project.
   table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
     tbody
       tr
@@ -88,7 +108,7 @@ block content
   br
   h1(style="text-align: center;") Stories Health
   p
-    span(style="font-size: 8pt;") (Scrumwise engg stories picked up in this iteration and their corresponding PMStory. Green highlighed shows accomplishments, yellow shows changes. Blue shows an error, and PMStory must be updated to fix it. *** are engg stories picked up in this iteration)
+    span(style="font-size: 10pt;") (Scrumwise engg stories picked up in this iteration and their corresponding PMStory. Green highlighed shows accomplishments, yellow shows changes. Blue shows an error, and PMStory must be updated to fix it. *** are engg stories picked up in this iteration)
   - var scrumCount = -1;
   each scrum in scrums
     - scrumCount++;
@@ -146,7 +166,7 @@ block content
                   span ***
                 span
                   a(href='https://sailpoint.atlassian.net/browse/' + enggStory.currentKey)  #{enggStory.summary} (#{enggStory.currentKey})
-                if enggStory.acceptanceReviewedByPM == 'No'
+                //if enggStory.acceptanceReviewedByPM == 'No'
                   span(style="background-color: #2873ee; color: #303030;") Acceptance criteria NOT reviewed by PM
               td
                 if enggStory.statusChanged
