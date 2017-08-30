@@ -204,7 +204,7 @@ process.argv.forEach(function (val, index, array) {
 
 function publishHarborReport(reportType ){
 
-    getModel().fetchIterationView(reportType, false, (err, scrums, comboObjs, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories, iterations, startDateMsec, endDateMsec) => {
+    getModel().fetchIterationView(reportType, false, (err, scrums, comboObjs, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories, iterationSummary, iterations, startDateMsec, endDateMsec) => {
         if (err) {
             logger.error(err);
             return;
@@ -241,12 +241,14 @@ function publishHarborReport(reportType ){
                 console.log('groomingHealthPM:' + JSON.stringify(groomingHealthPM));
                 _getPMStoryChanges(startDateMsec, endDateMsec, (err, changedPMStories) => {
                     console.log('changedPMStories:' + JSON.stringify(changedPMStories));
+                    console.log('iterationSummary:' + JSON.stringify(iterationSummary));
                     express().render('harboriterationstatus.jade', {
                         groomingScrums: groomingScrums,
                         groomingHealthEngg: groomingHealthEngg,
                         groomingHealthPM: groomingHealthPM,
                         groomingHealthCountStories: groomingHealthCountStories,
                         groomingHealthCountStoriesPMReviewed: groomingHealthCountStoriesPMReviewed,
+                        iterationSummary: iterationSummary,
                         changedPMStories: changedPMStories,
                         scrums: scrums,
                         ComboObjs: comboObjs,

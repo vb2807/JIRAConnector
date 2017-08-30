@@ -368,6 +368,11 @@ function processOnlyPickedUpEnggStoriesForADuration (EnggEntities, iterationStar
         var connectivityInvestmentCountStories = null;
         var connectivityInvestmentDoneStoryPoints = null;
         var connectivityInvestmentCountDoneStories = null;
+        var iterationHealthScrums = null;
+        var iterationHealthStoryPoints = null;
+        var iterationHealthCountStories = null;
+        var iterationHealthDoneStoryPoints = null;
+        var iterationHealthCountDoneStories = null;
 
         logger.debug('processEnggStoriesForADuration:EnggEntities:' + JSON.stringify(EnggEntities));
         logger.debug('processEnggStoriesForADuration:EnggEntities.length:' + EnggEntities.length);
@@ -524,12 +529,88 @@ function processOnlyPickedUpEnggStoriesForADuration (EnggEntities, iterationStar
                                         }
                                     }
 
+                                    // let's build iteration summary
+                                    for (var idxItrSummary = 0; idxItrSummary < specificComboObj.enggstories.length; idxItrSummary++) {
+                                        if (!specificComboObj.enggstories[idxItrSummary].pickedUpInThisIteration) continue;
+                                        var itrHealthScrumName = specificComboObj.enggstories[idxItrSummary].currentKey.substring(0, specificComboObj.enggstories[idxItrSummary].currentKey.indexOf('-'));
+                                        if (!iterationHealthScrums) {
+                                            iterationHealthScrums = [itrHealthScrumName];
+                                            iterationHealthCountStories = [1];
+                                            if (!isNaN(specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd)) iterationHealthStoryPoints = [specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd];
+                                            else iterationHealthStoryPoints = [0];
+                                            if (specificComboObj.enggstories[idxItrSummary].statusAtIterationEnd == 'Done' || specificComboObj.enggstories[idxItrSummary].statusAtIterationEnd == 'Accepted') {
+                                                iterationHealthCountDoneStories = [1];
+                                                if (!isNaN(specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd)) iterationHealthDoneStoryPoints = [specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd];
+                                                else iterationHealthDoneStoryPoints = [0];
+
+                                            }
+                                            else {
+                                                iterationHealthCountDoneStories = [0];
+                                                iterationHealthDoneStoryPoints = [0];
+                                            }
+                                        }
+                                        else if ((iterationHealthScrums.indexOf(itrHealthScrumName)) == -1) {
+                                            for (var idxIterationHealthScrums = 0; idxIterationHealthScrums < iterationHealthScrums.length; idxIterationHealthScrums++) {
+                                                if (iterationHealthScrums[idxIterationHealthScrums] > itrHealthScrumName) {
+                                                    iterationHealthScrums.splice(idxIterationHealthScrums, 0, itrHealthScrumName);
+                                                    iterationHealthCountStories.splice(idxIterationHealthScrums, 0, 1);
+                                                    if (!isNaN(specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd))
+                                                        iterationHealthStoryPoints.splice(idxIterationHealthScrums, 0, specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd);
+                                                    else
+                                                        iterationHealthStoryPoints.splice(idxIterationHealthScrums, 0, 0);
+                                                    if (specificComboObj.enggstories[idxItrSummary].statusAtIterationEnd == 'Done' || specificComboObj.enggstories[idxItrSummary].statusAtIterationEnd == 'Accepted') {
+                                                        iterationHealthCountDoneStories.splice(idxIterationHealthScrums, 0, 1);
+                                                        if (!isNaN(specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd))
+                                                            iterationHealthDoneStoryPoints.splice(idxIterationHealthScrums, 0, specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd);
+                                                        else
+                                                            iterationHealthDoneStoryPoints.splice(idxIterationHealthScrums, 0, 0);
+                                                    }
+                                                    else {
+                                                        iterationHealthCountDoneStories.splice(idxIterationHealthScrums, 0, 0);
+                                                        iterationHealthDoneStoryPoints.splice(idxIterationHealthScrums, 0, 0);
+                                                    }
+                                                    break;
+                                                }
+                                                else if(idxIterationHealthScrums == iterationHealthScrums.length - 1) {
+                                                    iterationHealthScrums.push(itrHealthScrumName);
+                                                    iterationHealthCountStories.push(1);
+                                                    if (!isNaN(specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd))
+                                                        iterationHealthStoryPoints.push(specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd);
+                                                    else iterationHealthStoryPoints.push(0);
+                                                    if (specificComboObj.enggstories[idxItrSummary].statusAtIterationEnd == 'Done' || specificComboObj.enggstories[idxItrSummary].statusAtIterationEnd == 'Accepted') {
+                                                        iterationHealthCountDoneStories.push(1);
+                                                        if (!isNaN(specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd))
+                                                            iterationHealthDoneStoryPoints.push(specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd);
+                                                        else
+                                                            iterationHealthDoneStoryPoints.push(0);
+                                                    }
+                                                    else {
+                                                        iterationHealthCountDoneStories.push(0);
+                                                        iterationHealthDoneStoryPoints.push(0);
+                                                    }
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        else {
+                                            let scrumIndexInIterationHealthScrums = iterationHealthScrums.indexOf(itrHealthScrumName);
+                                            iterationHealthCountStories[scrumIndexInIterationHealthScrums]++;
+                                            if (!isNaN(specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd))
+                                                iterationHealthStoryPoints[scrumIndexInIterationHealthScrums] =  iterationHealthStoryPoints[scrumIndexInIterationHealthScrums] + specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd;
+                                            if (specificComboObj.enggstories[idxItrSummary].statusAtIterationEnd == 'Done' || specificComboObj.enggstories[idxItrSummary].statusAtIterationEnd == 'Accepted') {
+                                                iterationHealthCountDoneStories[scrumIndexInIterationHealthScrums]++;
+                                                if (!isNaN(specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd))
+                                                    iterationHealthDoneStoryPoints[scrumIndexInIterationHealthScrums] =  iterationHealthDoneStoryPoints[scrumIndexInIterationHealthScrums] + specificComboObj.enggstories[idxItrSummary].storyPointsAtIterationEnd;
+                                            }
+                                        }
+                                    }
+
                                     count--;
                                     logger.debug('processOnlyPickedUpEnggStoriesForADuration:count:' + count);
                                     logger.debug('After buildSpecificComboObj(), scrums:' + JSON.stringify(scrums));
                                     logger.debug('After buildSpecificComboObj(), comboObj:' + JSON.stringify(comboObj));
 
-                                    if (count == 0) return cb(null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories);
+                                    if (count == 0) return cb(null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories, {'iterationHealthScrums': iterationHealthScrums, 'iterationHealthStoryPoints': iterationHealthStoryPoints, 'iterationHealthCountStories': iterationHealthCountStories, 'iterationHealthDoneStoryPoints': iterationHealthDoneStoryPoints, 'iterationHealthCountDoneStories': iterationHealthCountDoneStories});
                                 }
                             })
                         }
@@ -539,97 +620,6 @@ function processOnlyPickedUpEnggStoriesForADuration (EnggEntities, iterationStar
         });
     }
 }
-
-/*
-function asyncFetchEnggStories (iterationName, iterationStartDateMsec, iterationEndDateMsec, cb) {
-    // const PMStoryKey = ds.key(['Event', event, 'PMStories', parseInt(pmstoryid, 10)]);
-    // const PMStoryKey = ds.key(['PMStories', pmstoryid]);
-    const q = ds.createQuery(['EnggStory'])
-        .filter('sprintsTravelled', '=', iterationName);
-    // .order('entityUpdateTimeMsec')
-    // .order('PMStoryID');
-
-    ds.runQuery(q, (err, EnggEntities, nextQuery) => {
-        if (err) {
-            logger.error(err);
-            cb(err, null);
-            return;
-        }
-        if (!EnggEntities) {
-            cb('Something wrong. Could not get enggStories changed in iteration starting:' + new Date(iterationStartDateMsec), null);
-            return;
-        }
-        if (EnggEntities.length == 0) {
-            cb('no engg story changed in this iteration:' + new Date(iterationStartDateMsec), null);
-            return;
-        }
-        if (EnggEntities) {
-            // logger.debug('entities:' + JSON.stringify(entities));
-            // lets iteration thru all entities and get their PMStory Ids so we can query all PMStory Entities also
-            var keys = [];
-            var EnggStoriesOfAPMStory = [];
-            var EnggStoriesWithNullPMStory = [];
-            var uniquePMStories =  [];
-            var comboObj = [];
-
-            for (var k = 0; k < EnggEntities.length; k++) {
-                logger.debug('EnggEntities[k].key.id:' + EnggEntities[k].key.id);
-                logger.debug('EnggEntities[k].data.PMStoryID:' + EnggEntities[k].data.PMStoryID);
-                if (!EnggEntities[k].data.PMStoryID) EnggStoriesWithNullPMStory.push(EnggEntities[k]);
-                else if (uniquePMStories.indexOf(EnggEntities[k].data.PMStoryID) == -1) {
-                    uniquePMStories.push(EnggEntities[k].data.PMStoryID);
-                    keys.push(ds.key(['PMStory', EnggEntities[k].data.PMStoryID]));
-                }
-            }
-            ds.get(keys, (err, PMEntities) => {
-                if (err) {
-                    logger.error(err);
-                    logger.debug('asyncFetchEnggStories:count:' + count);
-                    return cb (err);
-                }
-                else {
-                    var count = PMEntities.length;
-                    if (count != keys.length) {
-                        logger.info('Some PMStory Entities not present in Google Datastore.')
-                        for (var k=0; k < keys.length; k++) {
-                            var flagKeyFound = false;
-                            for (var z=0; z < PMEntities.length; z++) {
-                                if (keys[k].id == PMEntities[z].key.id) {
-                                    flagKeyFound = true;
-                                    break;
-                                }
-                            }
-                            if (!flagKeyFound) logger.error ('PMEntity not found for PMStoryID:' + keys[k].id);
-                        }
-                    }
-                    if (EnggStoriesWithNullPMStory.length > 0) {
-                        PMEntities.push(null);
-                        count ++;
-                        logger.debug('EnggStoriesWithNullPMStory:' + JSON.stringify(EnggStoriesWithNullPMStory));
-                    }
-
-                    PMEntities.forEach(function (PMEntity) {
-                        fetchEnggStoriesOfPMStory(iterationStartDateMsec, iterationEndDateMsec, PMEntity, EnggStoriesWithNullPMStory, (err, specificComboObj) => {
-                            if (err) {
-                                logger.error(err);
-                                count --;
-                                logger.debug('separate:asyncFetchEnggStories:count:' + count);
-                                if (count == 0) return cb(null, comboObj);
-                            }
-                            else {
-                                comboObj.push(specificComboObj);
-                                count --;
-                                logger.debug('separate:asyncFetchEnggStories:count:' + count);
-                                if (count == 0) return cb(null, comboObj);
-                            }
-                        })
-                    });
-                }
-            });
-        }
-    });
-}
-*/
 
 function fetchEnggStoriesOfPMStory(PMEntity, EnggStoriesWithNullPMStory, cb) {
 
@@ -879,11 +869,11 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
                 PMStoryEntityData.storyAcceptedThisIteration = PMStoryEntityData.storyAcceptedThisIteration + 1;
             }
             if (enggDataForComboObj.statusAtIterationStart == 'Accepted') PMStoryEntityData.storyAcceptedLastIteration = PMStoryEntityData.storyAcceptedLastIteration + 1;
-            if (!isNaN(enggDataForComboObj.storyPointsAtIterationEnd) && enggStoriesPickedUpInIteration.indexOf(enggDataForComboObj.currentKey) != -1) {
-                PMStoryEntityData.storyPoints = PMStoryEntityData.storyPoints + parseInt(enggDataForComboObj.storyPointsAtIterationEnd);
+            if (enggStoriesPickedUpInIteration.indexOf(enggDataForComboObj.currentKey) != -1) {
+                if (!isNaN(enggDataForComboObj.storyPointsAtIterationEnd)) PMStoryEntityData.storyPoints = PMStoryEntityData.storyPoints + parseInt(enggDataForComboObj.storyPointsAtIterationEnd);
                 PMStoryEntityData.countStoriesThisIteration++;
                 if (enggDataForComboObj.statusAtIterationEnd == 'Done' || enggDataForComboObj.statusAtIterationEnd == 'Accepted') {
-                    PMStoryEntityData.doneStoryPoints = PMStoryEntityData.doneStoryPoints + parseInt(enggDataForComboObj.storyPointsAtIterationEnd);
+                    if (!isNaN(enggDataForComboObj.storyPointsAtIterationEnd)) PMStoryEntityData.doneStoryPoints = PMStoryEntityData.doneStoryPoints + parseInt(enggDataForComboObj.storyPointsAtIterationEnd);
                     PMStoryEntityData.storiesDoneThisIteration++;
                 }
             }
@@ -1050,12 +1040,12 @@ function _fetchIterationView (reportType, flagOnlyEnggStoriesPickedUpInIteration
             }
             else {
                 logger.debug('asyncFetchEnggStoriesForADuration complete. enggStories:' + JSON.stringify(enggEntitiesChangedinIterations))
-                processOnlyPickedUpEnggStoriesForADuration(enggEntitiesChangedinIterations, startDateMsec, endDateMsec, flagOnlyEnggStoriesPickedUpInIteration, (err, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories) => {
+                processOnlyPickedUpEnggStoriesForADuration(enggEntitiesChangedinIterations, startDateMsec, endDateMsec, flagOnlyEnggStoriesPickedUpInIteration, (err, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories, iterationSummary) => {
                     if (err) {
                         logger.error('asyncFetchEnggStoriesForADuration: Error: ' + err);
                         return cb (err, null, null);
                     }
-                    else return cb (null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories, iterations, startDateMsec, endDateMsec);
+                    else return cb (null, scrums, comboObj, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories, iterationSummary, iterations, startDateMsec, endDateMsec);
                 });
             }
         });

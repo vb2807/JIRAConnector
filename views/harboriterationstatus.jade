@@ -106,6 +106,25 @@ block content
             span )
   br
   br
+  h1(style="text-align: left;") Iteration Summary
+  p
+    span(style="font-size: 10pt;") Count of stories planned in this iteration, and 'Done' or 'Accepted'.
+  table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
+    tbody
+      tr
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Scrum
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories (Planned)
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories (Done)
+      each iterationHealthSrum, index in iterationSummary.iterationHealthScrums
+        tr
+          td(style="padding: 6px;")
+            span #{iterationHealthSrum}
+          td(style="padding: 6px;")
+            span #{iterationSummary.iterationHealthCountStories[index]}
+          td(style="padding: 6px;")
+            span #{iterationSummary.iterationHealthCountDoneStories[index]}
+  br
+  br
   h1(style="text-align: center;") Stories Health
   p
     span(style="font-size: 10pt;") (Scrumwise engg stories picked up in this iteration and their corresponding PMStory. Green highlighed shows accomplishments, yellow shows changes. Blue shows an error, and PMStory must be updated to fix it. *** are engg stories picked up in this iteration)
