@@ -14,13 +14,13 @@
 div(style="color: #303030;")
   h1(style="text-align: left;") Grooming Health
   p
-    span(style="font-size: 10pt;") Story count for all engg user stories in status 'Open' and 'In Progress'. # Stories (PM Reviewed) shows count of engg stories whose acceptance criteria is agreed between PM and scrum master. If count is >=8 then it's green, if count is between 8 and 4 then yellow else it's red.
+    span(style="font-size: 10pt;") Story count for all engg user stories in status 'Open' and 'In Progress'. Story Points is the sum of story points for that scrum, # Stories is the count of stories. PM Reviewed Story Points is sum of story points whose acceptance criteria is agreed between PM and scrum master. If sum of story points is >=30 then it's green, if count is between 10 and 30 then yellow else it's red.
   table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
     tbody
       tr
         td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Scrum
-        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories
-        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories (PM Reviewed)
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Story Points (# Stories)
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") PM Reviewed Story Points (# Stories)
       each groomingScrum, index in groomingScrums
         tr
           if groomingScrum == 'Average'
@@ -30,42 +30,53 @@ div(style="color: #303030;")
             td(style="padding: 6px;")
               span #{groomingScrum}
             // td(style="padding: 6px;")
-          if groomingHealthCountStories[index] >= 8
+          if groomingHealthEngg[index] >= 30
             td(style="padding: 6px;background-color: #7ed529;")
+              span #{groomingHealthEngg[index]}
+              span  (
               span #{groomingHealthCountStories[index]}
-          else if groomingHealthCountStories[index] >= 4
+              span )
+          else if groomingHealthEngg[index] >= 10
             td(style="padding: 6px;background-color: #faf387;")
+              span #{groomingHealthEngg[index]}
+              span  (
               span #{groomingHealthCountStories[index]}
+              span )
           else
             td(style="padding: 6px;background-color: #e23d39;")
+              span #{groomingHealthEngg[index]}
+              span  (
               span #{groomingHealthCountStories[index]}
-              // span  (
-              // span #{groomingHealthEngg[index]}
-              // span )
-              // td(style="padding: 6px;")
-          if groomingHealthCountStoriesPMReviewed[index] >= 8
+              span )
+          if groomingHealthPM[index] >= 30
             td(style="padding: 6px;background-color: #7ed529;")
+              span #{groomingHealthPM[index]}
+              span  (
               span #{groomingHealthCountStoriesPMReviewed[index]}
-          else if groomingHealthCountStoriesPMReviewed[index] >= 4
+              span )
+          else if groomingHealthPM[index] >= 10
             td(style="padding: 6px;background-color: #faf387;")
+              span #{groomingHealthPM[index]}
+              span  (
               span #{groomingHealthCountStoriesPMReviewed[index]}
+              span )
           else
             td(style="padding: 6px;background-color: #e23d39;")
+              span #{groomingHealthPM[index]}
+              span  (
               span #{groomingHealthCountStoriesPMReviewed[index]}
-              // span  (
-              // span #{groomingHealthPM[index]}
-              // span )
+              span )
   br
   br
   h1(style="text-align: left;") Connectivity Investment
   p
-    span(style="font-size: 10pt;") Investment Bucket wise distribution of engg user stories Done or Accepted in this iteration. This data will be useful for Product Council.
+    span(style="font-size: 10pt;") Investment Bucket wise distribution of engg user stories Done or Accepted in this iteration. 'Done Story Points' is the sum of story points of Done or Accepted user stories, and (# Stories) is count of stories. This data will be useful for Product Council.
   table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
     tbody
       tr
         td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Investment Bucket
         // td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories (Planned)
-        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") # Stories (Done)
+        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Done Story Points (# Stories)
       each investmentBucket, index in connectivityInvestmentBuckets
         tr
           td(style="padding: 6px;")
@@ -76,10 +87,10 @@ div(style="color: #303030;")
             // span #{connectivityInvestmentStoryPoints[index]}
             // span )
           td(style="padding: 6px;")
+            span #{connectivityInvestmentDoneStoryPoints[index]}
+            span  (
             span #{connectivityInvestmentCountDoneStories[index]}
-            // span  (
-            // span #{connectivityInvestmentDoneStoryPoints[index]}
-            // span )
+            span )
   br
   br
   h1(style="text-align: left;") PMStory Changes
