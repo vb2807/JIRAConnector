@@ -33,7 +33,7 @@ html(lang="en")
                 span.caret
               ul.dropdown-menu.dropdown-toggle(data-toggle="dropdown")
                 li
-                  a(href="/groominghealth?type=iteration") Overall Changes
+                  a(href="/iterationview?type=iteration") Overall Changes
                 li
                   a(href="/iterationview?type=iteration") Iteration Changes
 
@@ -43,7 +43,7 @@ html(lang="en")
                 span.caret
               ul.dropdown-menu.dropdown-toggle(data-toggle="dropdown")
                 li
-                  a(href="/groominghealth?type=iteration-1") Overall Changes
+                  a(href="/iterationview?type=iteration-1") Overall Changes
                 li
                   a(href="/iterationview?type=iteration-1") Iteration Changes
 
@@ -53,7 +53,7 @@ html(lang="en")
                 span.caret
               ul.dropdown-menu.dropdown-toggle(data-toggle="dropdown")
                 li
-                  a(href="/groominghealth?type=iteration-2") Overall Changes
+                  a(href="/iterationview?type=iteration-2") Overall Changes
                 li
                   a(href="/iterationview?type=iteration-2") Iteration Changes
 
@@ -63,9 +63,9 @@ html(lang="en")
                 span.caret
               ul.dropdown-menu.dropdown-toggle(data-toggle="dropdown")
                 li
-                  a(href="/groominghealth?type=iteration-3") Overall Changes
+                  a(href="/iterationview?type=iteration-3") Overall Changes
                 li
                   a(href="/iterationview?type=iteration-3") Iteration Changes
 
   .container
-    block content
+    include harboriterationstatus

@@ -242,7 +242,7 @@ function publishHarborReport(reportType ){
                 _getPMStoryChanges(startDateMsec, endDateMsec, (err, changedPMStories) => {
                     console.log('changedPMStories:' + JSON.stringify(changedPMStories));
                     console.log('iterationSummary:' + JSON.stringify(iterationSummary));
-                    express().render('harboriterationstatus.jade', {
+                    express().render('baseHarbor.jade', {
                         groomingScrums: groomingScrums,
                         groomingHealthEngg: groomingHealthEngg,
                         groomingHealthPM: groomingHealthPM,
@@ -1131,5 +1131,7 @@ module.exports = {
     deltaAgg: _deltaAgg,
     copyWeeklyData: _copyWeeklyData,
     copyData,
-    getGroomingHealth: _getGroomingHealth
+    getGroomingHealth: _getGroomingHealth,
+    logger: logger,
+    getPMStoryChanges: _getPMStoryChanges
 }

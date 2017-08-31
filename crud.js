@@ -22,6 +22,8 @@ function getModel () {
   return require(`./model-${config.get('DATA_BACKEND')}`);
 }
 
+var JIRAConnector = require('./JIRAConnector');
+
 const router = express.Router();
 
 // Automatically parse request body as form data
@@ -79,48 +81,67 @@ router.get('/groominghealth', (req, res, next) => {
 });
 
 router.get('/iterationview', (req, res, next) => {
-    console.log('req.query.type:' + req.query.type);
+    JIRAConnector.logger.debug('req.query.type:' + req.query.type);
     // console.log('req.query.which:' + req.query.which);
-    getModel().fetchIterationView(req.query.type, true, (err, scrums, comboObjs, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints) => {
+    getModel().fetchIterationView(req.query.type, false, (err, scrums, comboObjs, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories, iterationSummary, iterations, startDateMsec, endDateMsec) => {
         if (err) {
-            console.log(err);
-            next(err);
+            JIRAConnector.logger.error(err);
             return;
         }
         if(!comboObjs) {
-            console.log('ComboObjs in null.');
-            res.end('ComboObjs in null.');
+            JIRAConnector.logger.error('ComboObjs in null.');
             return;
         }
         // console.log(pmstories);
         if(comboObjs) {
-            console.log('returned all the combo objs. Ready to send HTML');
-            console.log('comboObjs:' + JSON.stringify(comboObjs));
-            console.log('scrums:' + JSON.stringify(scrums));
-            console.log('connectivityInvestmentBuckets:' + JSON.stringify(connectivityInvestmentBuckets));
-            console.log('connectivityInvestmentStoryPoints:' + JSON.stringify(connectivityInvestmentStoryPoints));
+            JIRAConnector.logger.debug('returned all the combo objs. Ready to send HTML');
+            JIRAConnector.logger.debug('comboObjs:' + JSON.stringify(comboObjs));
+            JIRAConnector.logger.debug('scrums:' + JSON.stringify(scrums));
+            JIRAConnector.logger.debug('connectivityInvestmentBuckets:' + JSON.stringify(connectivityInvestmentBuckets));
+            JIRAConnector.logger.debug('connectivityInvestmentStoryPoints:' + JSON.stringify(connectivityInvestmentStoryPoints));
+            JIRAConnector.logger.debug('connectivityInvestmentCountStories:' + JSON.stringify(connectivityInvestmentCountStories));
+            JIRAConnector.logger.debug('connectivityInvestmentCountDoneStories:' + JSON.stringify(connectivityInvestmentCountDoneStories));
             /*
-            comboObjs.forEach((x) => {
-                console.log('x:' + JSON.stringify(x));
-                console.log('x:' + x);
-                console.log('x.pmstory:' + x.pmstory);
-                console.log('x.enggstories:' + x.enggstories);
+             comboObjs.forEach((x) => {
+             console.log('x:' + JSON.stringify(x));
+             console.log('x:' + x);
+             console.log('x.pmstory:' + x.pmstory);
+             console.log('x.enggstories:' + x.enggstories);
 
-                x.enggstories.forEach ((enggstory) => {
-                    console.log(enggstory);
-                })
+             x.enggstories.forEach ((enggstory) => {
+             console.log(enggstory);
+             })
 
-            });
-            */
-
-            res.render('iterationstatus.jade', {
-                scrums: scrums,
-                ComboObjs: comboObjs,
-                connectivityInvestmentBuckets: connectivityInvestmentBuckets,
-                connectivityInvestmentStoryPoints: connectivityInvestmentStoryPoints
+             });
+             */
+            JIRAConnector.getGroomingHealth((err, groomingScrums, groomingHealthEngg, groomingHealthPM, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed) => {
+                JIRAConnector.logger.debug('groomingScrums:' + JSON.stringify(groomingScrums));
+                JIRAConnector.logger.debug('groomingHealthEngg:' + JSON.stringify(groomingHealthEngg));
+                JIRAConnector.logger.debug('groomingHealthPM:' + JSON.stringify(groomingHealthPM));
+                JIRAConnector.getPMStoryChanges(startDateMsec, endDateMsec, (err, changedPMStories) => {
+                    JIRAConnector.logger.debug('changedPMStories:' + JSON.stringify(changedPMStories));
+                    JIRAConnector.logger.debug('iterationSummary:' + JSON.stringify(iterationSummary));
+                    res.render('base.jade', {
+                        groomingScrums: groomingScrums,
+                        groomingHealthEngg: groomingHealthEngg,
+                        groomingHealthPM: groomingHealthPM,
+                        groomingHealthCountStories: groomingHealthCountStories,
+                        groomingHealthCountStoriesPMReviewed: groomingHealthCountStoriesPMReviewed,
+                        iterationSummary: iterationSummary,
+                        changedPMStories: changedPMStories,
+                        scrums: scrums,
+                        ComboObjs: comboObjs,
+                        connectivityInvestmentBuckets: connectivityInvestmentBuckets,
+                        connectivityInvestmentStoryPoints: connectivityInvestmentStoryPoints,
+                        connectivityInvestmentDoneStoryPoints: connectivityInvestmentDoneStoryPoints,
+                        connectivityInvestmentCountStories: connectivityInvestmentCountStories,
+                        connectivityInvestmentCountDoneStories: connectivityInvestmentCountDoneStories
+                    });
+                });
             });
         }
     });
+
 });
 
 /**
