@@ -342,7 +342,7 @@ function _getPMStoryChanges(startDateMsec, endDateMsec, cb) {
     var changedPMStories = null;
     var token = 0;
     _recursePMStoryChanges(changedPMStories, startDateMsec, endDateMsec, token, (err, changedPMStories) => {
-        return cb (null, changedPMStories);
+        return cb (null, changedPMStories ? changedPMStories : []);
     });
 }
 
