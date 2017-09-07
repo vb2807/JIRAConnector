@@ -225,22 +225,22 @@ function _getPMStoryIDFromPMStoryKey(PMStoryKey, cb) {
     ds.runQuery(q, (err, PMEntities, nextQuery) => {
         if (err) {
             logger.error(err);
-            return cb(err, null);
+            return cb(err, null, null);
         }
         if (!PMEntities) {
             logger.error('Something wrong. Could not get PMStory for PMStoryKey:' + PMStoryKey);
-            return cb('Something wrong. Could not get PMStory for PMStoryKey:' + PMStoryKey, null);
+            return cb('Something wrong. Could not get PMStory for PMStoryKey:' + PMStoryKey, null, null);
         }
         if (PMEntities.length > 1) {
             logger.error('Multiple PMStories found for PMStoryKey:' + PMStoryKey);
-            return cb('Multiple PMStories found for PMStoryKey:' + PMStoryKey, null);
+            return cb('Multiple PMStories found for PMStoryKey:' + PMStoryKey, null, null);
         }
         if (PMEntities.length == 0) {
             logger.info('No PMStoryEntity yet for PMStoryKey:' + PMStoryKey + '. Need to get it from JIRA.');
-            return cb(null, null);
+            return cb(null, null, null);
         }
         logger.debug('PMStoryID:' + PMEntities[0].key.id);
-        return cb (null, PMEntities[0].key.id);
+        return cb (null, PMEntities[0].key.id, PMEntities[0].data.PMOwner);
     });
 }
 
@@ -1391,6 +1391,28 @@ function _getReadyReadyEnggStories (enggStoryStatus, token, cb) {
     var limit = 50;
     const q = ds.createQuery(['EnggStory'])
         .filter('currentStatus', '=', enggStoryStatus)
+        .filter('groomingStory', '=', 'No')
+        .filter('flagged', '=', 'No')
+        //.filter('acceptanceReviewedByPM', '=', 'Yes')
+        .limit(limit)
+        .start(token);
+
+    ds.runQuery(q, (err, entities, nextQuery) => {
+        if (err) {
+            cb(err);
+            return;
+        }
+        const hasMore = nextQuery.moreResults !== Datastore.NO_MORE_RESULTS ? nextQuery.endCursor : false;
+        cb(null, entities, hasMore);
+    });
+}
+
+function _getNotReadyReadyEnggStories (enggStoryStatus, token, cb) {
+    var limit = 50;
+    const q = ds.createQuery(['EnggStory'])
+        .filter('currentStatus', '=', enggStoryStatus)
+        // .filter('groomingStory', '=', 'No')
+        .filter('acceptanceReviewedByPM', '=', 'No')
         .limit(limit)
         .start(token);
 
@@ -1888,7 +1910,8 @@ module.exports = {
     twoWksInMsec,
     publishOnHarbor: _publishOnHarbor,
     getReadyReadyEnggStories: _getReadyReadyEnggStories,
-    getPMStoriesChangedBetween: _getPMStoriesChangedBetween
+    getPMStoriesChangedBetween: _getPMStoriesChangedBetween,
+    getNotReadyReadyEnggStories: _getNotReadyReadyEnggStories
 };
 // [END exports]
 

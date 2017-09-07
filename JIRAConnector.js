@@ -21,6 +21,7 @@ const maxResults = 50;
 const waitTimeForRetry = 1000;
 const frequencyprocessSearchResults = 60000;
 const AllJIRAProjects = 'CONPM, CONBOGIBEE, CONMF, CONHOWRAH, CONVASHI, CONUMSHIAN, CONPAMBAN, CONNAMDANG, CONHELIX, CONELLIS, CONSEALINK, CONJADUKAT, CONCHENAB';
+const STR_GROOMING = 'Grooming'
 
 const logger = new (winston.Logger)({
     transports: [
@@ -460,12 +461,15 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
             "updated",
             "timespent",
             "customfield_10016", //Sprint field in JIRA
-            "customfield_10109",
+            "customfield_10109", // Story Points
             "customfield_10017", // Epic link
             "customfield_16602", // Acceptance Criteria Reviewed by PM
+            "customfield_14407", // Connectivity Investment
+            "customfield_10201", // Fixed In
+            "customfield_10202", // Verified In
+            "customfield_10111", // Flagged
             "fixVersions",
             "assignee",
-            "customfield_14407",
             "components"
         ],
 
@@ -530,7 +534,7 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
                                     logger.error(err);
                                     return;
                                 }
-                                getPMStoryKey(specificIssue, (err, PMStoryID, PMStoryKey) => {
+                                getPMStoryKey(specificIssue, (err, PMStoryID, PMStoryKey, PMOwner) => {
                                     if (err) {
                                         logger.error('Error in reading PMStoryID and PMStoryKey. key:' + specificIssue.key);
                                         logger.error(err);
@@ -538,7 +542,7 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
                                     }
                                     logger.debug('PMStoryID:' + PMStoryID + ', PMStoryKey:' + PMStoryKey);
                                     issueCounter++;
-                                    upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateTime, scrum, searchResult, cursor, deltaSince, JIRAProjects, PMStoryID, PMStoryKey);
+                                    upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateTime, scrum, searchResult, cursor, deltaSince, JIRAProjects, PMStoryID, PMStoryKey, PMOwner);
                                 });
                             });
                         }
@@ -555,7 +559,9 @@ function getPMStoryKeyfromJIRA (PMStoryKey, cb) {
         jql: 'key in (' + PMStoryKey + ')',
         startAt: 0,
         maxResults: maxResults,
-        fields: [],
+        fields: [
+            "assignee"
+        ],
         expand: []
     }, function (error, searchResult) {
         if (error) {
@@ -565,46 +571,44 @@ function getPMStoryKeyfromJIRA (PMStoryKey, cb) {
             setTimeout(getPMStoryKeyfromJIRA, waitTimeForRetry, PMStoryKey, cb);
         }
         logger.debug('getPMStoryKeyfromJIRA: PMStoryID:' + searchResult.issues[0].id + ' for PMStoryKey:' + PMStoryKey);
-        return cb (null, searchResult.issues[0].id);
+        return cb (null, searchResult.issues[0].id, searchResult.issues[0].fields.assignee == null ? null : searchResult.issues[0].fields.assignee.name);
     });
 }
 
 function getPMStoryKey(specificIssue, cb) {
     var PMStoryKey = null;
-    var PMStoryID = null;
     if (specificIssue.fields.customfield_10017) {
         PMStoryKey = specificIssue.fields.customfield_10017;
-        getModel().getPMStoryIDFromPMStoryKey(PMStoryKey, (err, PMStoryID) => {
-            if (err) {
-                logger.error(err);
-                return cb (err, null);
-            }
-            if (!PMStoryID) {
-                // connect to JIRA to get the PMStoryKey
-                logger.debug('PMStoryID is null for PMStoryKey:' + PMStoryKey);
-                getPMStoryKeyfromJIRA(PMStoryKey, (err, PMStoryID) => {
-                    if (err) return cb (err, null);
-                    else return cb (null, PMStoryID, PMStoryKey);
-                });
-
-            }
-            else return cb (null, PMStoryID, PMStoryKey);
-        });
     }
     else {
         for (var indexLink = 0; indexLink < specificIssue.fields.issuelinks.length; indexLink++) {
             var specificIssueLink = specificIssue.fields.issuelinks[indexLink];
             if (specificIssueLink.inwardIssue && (specificIssueLink.type.inward.toLowerCase() == 'is caused by' || specificIssueLink.type.inward.toLowerCase() == 'relates to') && specificIssueLink.inwardIssue.key.startsWith('CONPM')) {
                 PMStoryKey = specificIssueLink.inwardIssue.key;
-                PMStoryID = specificIssueLink.inwardIssue.id;
-                return cb(null, PMStoryID, PMStoryKey);
+                break;
             }
         }
-        return cb(null, null, null);
     }
+    if (!PMStoryKey) return cb (null, null, null, null);
+    getModel().getPMStoryIDFromPMStoryKey(PMStoryKey, (err, PMStoryID, PMOwner) => {
+        if (err) {
+            logger.error(err);
+            return cb (err, null, null);
+        }
+        if (!PMStoryID) {
+            // connect to JIRA to get the PMStoryKey
+            logger.debug('PMStoryID is null for PMStoryKey:' + PMStoryKey);
+            getPMStoryKeyfromJIRA(PMStoryKey, (err, PMStoryID, PMOwner) => {
+                if (err) return cb (err, null, null);
+                else return cb (null, PMStoryID, PMStoryKey, PMOwner);
+            });
+
+        }
+        else return cb (null, PMStoryID, PMStoryKey, PMOwner);
+    });
 }
 
-function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateTime, scrum, searchResult, cursor, deltaSince, JIRAProjects, PMStoryID, PMStoryKey) {
+function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateTime, scrum, searchResult, cursor, deltaSince, JIRAProjects, PMStoryID, PMStoryKey, PMOwner) {
     // let's get its changelog
     var arrayHistories = specificIssue.changelog.histories;
     var acceptedDate = null;
@@ -658,7 +662,6 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
 
     // now let's iterate thru history, and shift data if we find something
     var indexHistories = arrayHistories.length;
-//    for (var indexHistories = arrayHistories.length - 1; indexHistories >=  0; indexHistories--) {
     while (indexHistories >  0) {
         indexHistories--;
         var specificHistory = arrayHistories[indexHistories];
@@ -729,23 +732,23 @@ function upsertEnggEntity(specificIssue, curentEnggEntity, issueCounter, updateT
         getModel().getIterationDates(firstSprint, (err, firstSprintStartDate, firstSprintStartDateMsec, firstSprintEndDate, firstSprintEndDateMsec) => {
             if (err) {
                 logger.error(err);
-                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null, currentFixVersions, currentSprintsStrArray, sprintsTravelled);
+                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, PMOwner, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null, currentFixVersions, currentSprintsStrArray, sprintsTravelled);
                 return;
             }
             if (!firstSprintStartDate) {
                 logger.error('firstSprintStartDate:' + firstSprintStartDate);
-                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null, currentFixVersions, currentSprintsStrArray, sprintsTravelled);
+                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, PMOwner, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null, currentFixVersions, currentSprintsStrArray, sprintsTravelled);
                 return;
             }
             if (firstSprintStartDate) {
                 logger.debug('firstSprintStartDate:' + firstSprintStartDate);
-                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, firstSprintStartDate, currentFixVersions, currentSprintsStrArray, sprintsTravelled);
+                buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, PMOwner, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, firstSprintStartDate, currentFixVersions, currentSprintsStrArray, sprintsTravelled);
                 return;
             }
         });
     }
     else
-        buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null, currentFixVersions, currentSprintsStrArray, sprintsTravelled);
+        buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, PMOwner, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, null, currentFixVersions, currentSprintsStrArray, sprintsTravelled);
     return;
 }
 
@@ -826,6 +829,12 @@ function buildPMEntity(specificIssue, updateTime, cb) {
                 value: specificIssue.fields.customfield_14407
             },
             {
+                name: 'fixedIn',
+                value: !specificIssue.fields.customfield_10201 ? null : specificIssue.fields.customfield_10201.map((obj) => {
+                    return obj.name
+                })
+            },
+            {
                 name: 'PMOwner',
                 value: specificIssue.fields.assignee == null ? null : specificIssue.fields.assignee.name
             },
@@ -859,7 +868,7 @@ function buildPMEntity(specificIssue, updateTime, cb) {
     return cb(PMStoryEntity);
 }
 
-function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, firstSprintStartDate, currentFixVersions, currentSprintsStrArray, sprintsTravelled) {
+function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, deltaSince, updateTime, JIRAProjects, PMStoryID, PMStoryKey, PMOwner, statusHistory, fixVersionHistory, storyPointsHistory, scrum, acceptedDate, firstSprint, sprintHistory, firstSprintStartDate, currentFixVersions, currentSprintsStrArray, sprintsTravelled) {
     var dateCreatedObj = new Date(specificIssue.fields.created);
     var dateCreatedMsec = dateCreatedObj.getTime();
     var dateCreatedStr = dateCreatedObj.getFullYear() + '-' + (dateCreatedObj.getMonth() + 1) + '-' + dateCreatedObj.getDate();
@@ -976,6 +985,30 @@ function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, delt
                 value: firstSprintStartDate
             },
             {
+                name: 'groomingStory',
+                value: specificIssue.fields.components.findIndex(x => x.name === STR_GROOMING) >= 0 ? 'Yes' : 'No'
+            },
+            {
+                name: 'fixedIn',
+                value: !specificIssue.fields.customfield_10201 ? null : specificIssue.fields.customfield_10201.map((obj) => {
+                    return obj.name
+                })
+            },
+            {
+                name: 'verifiedIn',
+                value: !specificIssue.fields.customfield_10202 ? null : specificIssue.fields.customfield_10202.map((obj) => {
+                    return obj.name
+                })
+            },
+            {
+                name: 'flagged',
+                value: !specificIssue.fields.customfield_10111 ? 'No' : 'Yes'
+            },
+            {
+                name: 'PMOwner',
+                value: PMOwner
+            },
+            {
                 name: 'sprintHistory',
                 value: sprintHistory,
                 excludeFromIndexes: true
@@ -1054,7 +1087,7 @@ function processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHe
                             groomingHealthEngg.push(entities[i].data.storyPoints ? parseInt(entities[i].data.storyPoints, 10) : 0);
                             groomingHealthCountStories.push(1);
                             groomingHealthPMReviewed.push((entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? parseInt(entities[i].data.storyPoints, 10) : 0);
-                            groomingHealthCountStoriesPMReviewed.push(1);
+                            groomingHealthCountStoriesPMReviewed.push(entities[i].data.acceptanceReviewedByPM == 'Yes' ? 1 : 0);
                             break;
                         }
                     }
@@ -1062,7 +1095,7 @@ function processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHe
                 else {
                     groomingHealthEngg[scrumIndex] = parseInt(groomingHealthEngg[scrumIndex], 10) + (entities[i].data.storyPoints ? parseInt(entities[i].data.storyPoints, 10) : 0);
                     groomingHealthCountStories[scrumIndex]++;
-                    groomingHealthPMReviewed[scrumIndex] = parseInt(groomingHealthPMReviewed[scrumIndex], 10) + ((entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                    if (entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) groomingHealthPMReviewed[scrumIndex] = parseInt(groomingHealthPMReviewed[scrumIndex], 10) + parseInt(entities[i].data.storyPoints, 10);
                     if (entities[i].data.acceptanceReviewedByPM == 'Yes') groomingHealthCountStoriesPMReviewed[scrumIndex]++;
                 }
             }
@@ -1070,6 +1103,7 @@ function processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHe
         console.log('scrums:' + JSON.stringify(scrums));
         console.log('groomingHealthEngg:' + JSON.stringify(groomingHealthEngg));
         console.log('groomingHealthPMReviewed:' + JSON.stringify(groomingHealthPMReviewed));
+        console.log('groomingHealthCountStoriesPMReviewed:' + JSON.stringify(groomingHealthCountStoriesPMReviewed));
 
         if (!hasMore) return cb (null, scrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed);
         else return processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed, enggStoryStatus, hasMore, cb);
@@ -1086,14 +1120,14 @@ function _getGroomingHealth(cb) {
     var enggStoryStatus = 'Open';
 
     processEntitiesForGroomingHealth(groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed, enggStoryStatus, token, (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed) => {
-        enggStoryStatus = 'In Progress';
-        processEntitiesForGroomingHealth(groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed, enggStoryStatus, token, (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed) => {
+        // enggStoryStatus = 'In Progress';
+        // processEntitiesForGroomingHealth(groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed, enggStoryStatus, token, (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed) => {
             var sumGroomingHealthEngg = 0;
             var sumGroomingHealthPMReviewed = 0;
             var sumGroomingHealthCountStories = 0;
             var sumGroomingHealthCountStoriesPMReviewed = 0;
 
-            for (var i = 0; i < groomingScrums.length; i++) {
+            for (var i = 0; groomingScrums && i < groomingScrums.length; i++) {
                 sumGroomingHealthEngg = sumGroomingHealthEngg + groomingHealthEngg[i];
                 sumGroomingHealthPMReviewed = sumGroomingHealthPMReviewed + groomingHealthPMReviewed[i];
                 sumGroomingHealthCountStories = sumGroomingHealthCountStories + groomingHealthCountStories[i];
@@ -1106,7 +1140,80 @@ function _getGroomingHealth(cb) {
                 groomingHealthCountStories.push(parseInt(sumGroomingHealthCountStories/groomingScrums.length, 10));
                 groomingHealthCountStoriesPMReviewed.push(parseInt(sumGroomingHealthCountStoriesPMReviewed/groomingScrums.length, 10));
             }
-            return cb(err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed);
+            return cb(err, groomingScrums ? groomingScrums : [], groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed);
+        // });
+    });
+}
+
+function _processNotReadyReadyStories(notReadyReadyStories, enggStoryStatus, token, cb) {
+    getModel().getNotReadyReadyEnggStories(enggStoryStatus, token, (err, entities, hasMore) => {
+        if (err) {
+            logger.error(err);
+            return cb(err, notReadyReadyStories);
+        }
+        /*
+        for (var i = 0; i < entities.length; i++) {
+            console.log('entities[' + i + '].data.scrum:' + entities[i].data.scrum);
+            console.log('entities[' + i + '].data.storyPoints:' + entities[i].data.storyPoints);
+
+            if (!notReadyReadyStories) {
+                notReadyReadyStories = [{'pm:', 'TBD'}];
+                scrums = [entities[i].data.scrum];
+                groomingHealthEngg = entities[i].data.storyPoints ? [parseInt(entities[i].data.storyPoints, 10)] : [0];
+                groomingHealthCountStories = [1];
+                groomingHealthPMReviewed = (entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? [parseInt(entities[i].data.storyPoints, 10)] : [0];
+                groomingHealthCountStoriesPMReviewed = (entities[i].data.acceptanceReviewedByPM == 'Yes') ? [1] : [0];
+            }
+            else {
+                var scrumIndex = scrums.indexOf(entities[i].data.scrum);
+                if (scrumIndex == -1) {
+                    for (var scrumOrder = 0; scrumOrder < scrums.length; scrumOrder++) {
+                        if (scrums[scrumOrder] > entities[i].data.scrum) {
+                            scrums.splice(scrumOrder, 0, entities[i].data.scrum);
+                            groomingHealthEngg.splice(scrumOrder, 0, entities[i].data.storyPoints ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                            groomingHealthCountStories.splice(scrumOrder, 0, 1);
+                            groomingHealthPMReviewed.splice(scrumOrder, 0, (entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                            groomingHealthCountStoriesPMReviewed.splice(scrumOrder, 0, entities[i].data.acceptanceReviewedByPM == 'Yes' ? 1 : 0);
+                            break;
+                        }
+                        else if (scrumOrder == scrums.length - 1) {
+                            scrums.push(entities[i].data.scrum);
+                            groomingHealthEngg.push(entities[i].data.storyPoints ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                            groomingHealthCountStories.push(1);
+                            groomingHealthPMReviewed.push((entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                            groomingHealthCountStoriesPMReviewed.push(entities[i].data.acceptanceReviewedByPM == 'Yes' ? 1 : 0);
+                            break;
+                        }
+                    }
+                }
+                else {
+                    groomingHealthEngg[scrumIndex] = parseInt(groomingHealthEngg[scrumIndex], 10) + (entities[i].data.storyPoints ? parseInt(entities[i].data.storyPoints, 10) : 0);
+                    groomingHealthCountStories[scrumIndex]++;
+                    if (entities[i].data.acceptanceReviewedByPM == 'Yes' && entities[i].data.storyPoints) groomingHealthPMReviewed[scrumIndex] = parseInt(groomingHealthPMReviewed[scrumIndex], 10) + parseInt(entities[i].data.storyPoints, 10);
+                    if (entities[i].data.acceptanceReviewedByPM == 'Yes') groomingHealthCountStoriesPMReviewed[scrumIndex]++;
+                }
+            }
+        }
+        */
+        console.log('scrums:' + JSON.stringify(scrums));
+        console.log('groomingHealthEngg:' + JSON.stringify(groomingHealthEngg));
+        console.log('groomingHealthPMReviewed:' + JSON.stringify(groomingHealthPMReviewed));
+        console.log('groomingHealthCountStoriesPMReviewed:' + JSON.stringify(groomingHealthCountStoriesPMReviewed));
+
+        if (!hasMore) return cb (null, scrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed);
+        else return processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed, enggStoryStatus, hasMore, cb);
+    });
+}
+
+function _getNotReadReadyStories(cb) {
+    var token = 0;
+    var notReadyReadyStories = null;
+    var enggStoryStatus = 'Open';
+
+    _processNotReadyReadyStories(notReadyReadyStories, enggStoryStatus, token, (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed) => {
+        enggStoryStatus = 'In Progress';
+        _processNotReadyReadyStories(notReadyReadyStories, enggStoryStatus, token, (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed) => {
+            return cb(err, notReadyReadyStories);
         });
     });
 }
