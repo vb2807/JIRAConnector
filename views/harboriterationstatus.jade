@@ -19,7 +19,7 @@ div(style="color: #303030;")
     tbody
       tr
         td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Scrum
-        td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Story Points (# Stories)
+        // td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Story Points (# Stories)
         td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") PM Reviewed Story Points (# Stories)
       each groomingScrum, index in groomingScrums
         tr
@@ -30,19 +30,19 @@ div(style="color: #303030;")
             td(style="padding: 6px;")
               span #{groomingScrum}
             // td(style="padding: 6px;")
-          if groomingHealthEngg[index] >= 30
+          //if groomingHealthEngg[index] >= 30
             td(style="padding: 6px;background-color: #7ed529;")
               span #{groomingHealthEngg[index]}
               span  (
               span #{groomingHealthCountStories[index]}
               span )
-          else if groomingHealthEngg[index] >= 10
+          //else if groomingHealthEngg[index] >= 10
             td(style="padding: 6px;background-color: #faf387;")
               span #{groomingHealthEngg[index]}
               span  (
               span #{groomingHealthCountStories[index]}
               span )
-          else
+          //else
             td(style="padding: 6px;background-color: #e23d39;")
               span #{groomingHealthEngg[index]}
               span  (
@@ -197,7 +197,7 @@ div(style="color: #303030;")
                   span *** #{enggStory.summary}
                 else
                   span #{enggStory.summary}
-                //if enggStory.acceptanceReviewedByPM == 'No'
+                if enggStory.acceptanceReviewedByPM == 'No'
                   span(style="background-color: #2873ee; color: #303030;") Acceptance criteria NOT reviewed by PM
               td
                 if enggStory.statusChanged
