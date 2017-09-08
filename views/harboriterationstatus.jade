@@ -14,7 +14,7 @@
 div(style="color: #303030;")
   h1(style="text-align: left;") Grooming Health
   p
-    span(style="font-size: 10pt;") Story count for all engg user stories in status 'Open' and 'In Progress'. Story Points is the sum of story points for that scrum, # Stories is the count of stories. PM Reviewed Story Points is sum of story points whose acceptance criteria is agreed between PM and scrum master. If sum of story points is >=30 then it's green, if count is between 10 and 30 then yellow else it's red.
+    span(style="font-size: 10pt;") Criteria: Engg user stories in status 'Open' and 'Component is not Grooming' and 'Not Flagged' and 'Acceptance Criteria Reviewed by PM'. Story Points is the sum of story points for that scrum, # Stories is the count of stories. If sum of story points is >=30 then it's green, if count is between 10 and 30 then yellow else it's red.
   table(border="1" class="jiveBorder" style="border: 1px solid #C6C6C6;border-spacing:0px;")
     tbody
       tr
@@ -103,16 +103,17 @@ div(style="color: #303030;")
         td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Summary
         td(style="text-align: center;background-color: #f2f2f2;padding: 6px;") Status
       each changedPMStory in changedPMStories
-        tr
-          td(style="padding: 6px;")
-            a(style="color: #303030;" href='https://sailpoint.atlassian.net/browse/' + changedPMStory.pmstorykey) #{changedPMStory.pmstorykey}
-          td(style="padding: 6px;")
-            span #{changedPMStory.summary}
-          td(style="padding: 6px;")
-            span #{changedPMStory.statusAtEnd}
-            span  (
-            span(style="text-decoration: line-through;") #{changedPMStory.statusAtStart}
-            span )
+        if (changedPMStory.statusAtEnd == 'Ready Ready')
+          tr
+            td(style="padding: 6px;")
+              a(style="color: #303030;" href='https://sailpoint.atlassian.net/browse/' + changedPMStory.pmstorykey) #{changedPMStory.pmstorykey}
+            td(style="padding: 6px;")
+              span #{changedPMStory.summary}
+            td(style="padding: 6px;")
+              span #{changedPMStory.statusAtEnd}
+              span  (
+              span(style="text-decoration: line-through;") #{changedPMStory.statusAtStart}
+              span )
   br
   br
   h1(style="text-align: left;") Iteration Summary
@@ -193,11 +194,12 @@ div(style="color: #303030;")
                 span
                   a(href='https://sailpoint.atlassian.net/browse/' + enggStory.currentKey)  #{enggStory.currentKey}
               td(style="padding: 6px;")
-                if enggStory.pickedUpInThisIteration
-                  span *** #{enggStory.summary}
-                else
-                  span #{enggStory.summary}
-                if enggStory.acceptanceReviewedByPM == 'No'
+                if (enggStory.pickedUpInThisIteration && enggStory.acceptanceReviewedByPM == 'No')
+                  span(style="color: #e23d39;") ***
+                else if (enggStory.pickedUpInThisIteration && enggStory.acceptanceReviewedByPM == 'Yes')
+                  span(style="color: #303030;") ***
+                span  #{enggStory.summary}
+                // if enggStory.acceptanceReviewedByPM == 'No'
                   span(style="background-color: #2873ee; color: #303030;") Acceptance criteria NOT reviewed by PM
               td
                 if enggStory.statusChanged

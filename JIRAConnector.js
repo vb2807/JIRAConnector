@@ -1112,11 +1112,11 @@ function processEntitiesForGroomingHealth(scrums, groomingHealthEngg, groomingHe
 
 function _getGroomingHealth(cb) {
     var token = 0;
-    var groomingScrums = null;
-    var groomingHealthEngg = null;
-    var groomingHealthPMReviewed = null;
-    var groomingHealthCountStories = null;
-    var groomingHealthCountStoriesPMReviewed = null;
+    var groomingScrums = ['CONBOGIBEE', 'CONCHENAB', 'CONELLIS', 'CONHELIX', 'CONHOWRAH', 'CONMF', 'CONNAMDANG', 'CONPAMBAN', 'CONSEALINK', 'CONUMSHIAN', 'CONVASHI'];
+    var groomingHealthEngg = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    var groomingHealthPMReviewed = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    var groomingHealthCountStories = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    var groomingHealthCountStoriesPMReviewed = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     var enggStoryStatus = 'Open';
 
     processEntitiesForGroomingHealth(groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed, enggStoryStatus, token, (err, groomingScrums, groomingHealthEngg, groomingHealthPMReviewed, groomingHealthCountStories, groomingHealthCountStoriesPMReviewed) => {
