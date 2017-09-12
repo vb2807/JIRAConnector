@@ -20,7 +20,7 @@ const tsFormat = () => (new Date()).toString();
 const maxResults = 50;
 const waitTimeForRetry = 1000;
 const frequencyprocessSearchResults = 60000;
-const AllJIRAProjects = 'CONPM, CONBOGIBEE, CONMF, CONHOWRAH, CONVASHI, CONUMSHIAN, CONPAMBAN, CONNAMDANG, CONHELIX, CONELLIS, CONSEALINK, CONJADUKAT, CONCHENAB';
+const AllJIRAProjects = 'CONPM, CONBOGIBEE, CONMF, CONHOWRAH, CONVASHI, CONUMSHIAN, CONPAMBAN, CONNAMDANG, CONHELIX, CONELLIS, CONSEALINK, CONJADUKAT, CONCHENAB, CONTRASH';
 const STR_GROOMING = 'Grooming'
 
 const logger = new (winston.Logger)({
