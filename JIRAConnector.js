@@ -47,8 +47,8 @@ var JiraClient = require('jira-connector');
 var jira = new JiraClient({
     host: 'sailpoint.atlassian.net',
     basic_auth: {
-        username: 'vikas.bansal',
-        password: 'Iw2baw$2tmpf'
+        username: config.get('JIRA_USER_ID'),
+        password: config.get('JIRA_PASSWORD')
     }
 });
 

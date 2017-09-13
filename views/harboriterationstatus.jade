@@ -194,10 +194,12 @@ div(style="color: #303030;")
                 span
                   a(href='https://sailpoint.atlassian.net/browse/' + enggStory.currentKey)  #{enggStory.currentKey}
               td(style="padding: 6px;")
-                if (enggStory.pickedUpInThisIteration && enggStory.acceptanceReviewedByPM == 'No')
-                  span(style="color: #e23d39;") ***
-                else if (enggStory.pickedUpInThisIteration && enggStory.acceptanceReviewedByPM == 'Yes')
+                if (enggStory.pickedUpInThisIteration)
                   span(style="color: #303030;") ***
+                if (enggStory.acceptanceReviewedByPM == 'No')
+                  span(style="color: #303030;font-size: 8pt;") [
+                  span(style="color: #e23d39;font-size: 8pt;") ACDBPM
+                  span(style="color: #303030;font-size: 8pt;") ]
                 span  #{enggStory.summary}
                 // if enggStory.acceptanceReviewedByPM == 'No'
                   span(style="background-color: #2873ee; color: #303030;") Acceptance criteria NOT reviewed by PM

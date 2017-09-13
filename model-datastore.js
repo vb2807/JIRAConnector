@@ -937,7 +937,7 @@ function _publishOnHarbor(iterations, html) {
     // GET call to check if there is already a document. If so, retrieve it
     // header for GET
     var getheaders = {
-            'Authorization': 'Basic ' + new Buffer('vikas.bansal' + ':' + 'Ich@kkII2017').toString('base64')
+            'Authorization': 'Basic ' + new Buffer(config.get('HARBOR_USER_ID') + ':' + config.get('HARBOR_PASSWORD')).toString('base64')
     };
 
     // options for GET
@@ -991,7 +991,7 @@ function _publishOnHarbor(iterations, html) {
             var postheaders = {
                 'Content-Type' : 'application/json',
                 'Content-Length' : Buffer.byteLength(jsonObject, 'utf8'),
-                'Authorization': 'Basic ' + new Buffer('vikas.bansal' + ':' + 'Ich@kkII2017').toString('base64')
+                'Authorization': 'Basic ' + new Buffer(config.get('HARBOR_USER_ID') + ':' + config.get('HARBOR_PASSWORD')).toString('base64')
             };
 
             // the post options
