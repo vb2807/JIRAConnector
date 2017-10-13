@@ -29,15 +29,10 @@ nconf
     'JIRA_USER_ID',
     'JIRA_PASSWORD',
     'HARBOR_USER_ID',
-    'HARBOR_PASSWORD',
-    'OAUTH2_CLIENT_ID',
-    'OAUTH2_CLIENT_SECRET',
-    'OAUTH2_CALLBACK',
-    'MEMCACHE_URL',
-    'SECRET'
+    'HARBOR_PASSWORD'
   ])
   // 3. Config file
-  //.file({ file: path.join(__dirname, 'config.json') })
+  .file({ file: path.join(__dirname, 'config.json') })
   // 4. Defaults
   .defaults({
     // Port the HTTP server
@@ -51,11 +46,6 @@ checkConfig('JIRA_USER_ID');
 checkConfig('JIRA_PASSWORD');
 checkConfig('HARBOR_USER_ID');
 checkConfig('HARBOR_PASSWORD');
-checkConfig('OAUTH2_CLIENT_ID');
-checkConfig('OAUTH2_CLIENT_SECRET');
-checkConfig('OAUTH2_CALLBACK');
-checkConfig('MEMCACHE_URL');
-checkConfig('SECRET');
 
 function checkConfig (setting) {
   if (!nconf.get(setting)) {
