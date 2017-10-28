@@ -16,6 +16,8 @@ var schedule = require('node-schedule');
 var winston = require('winston');
 // require('winston-gae');
 
+var moment = require('moment');
+
 const tsFormat = () => (new Date()).toString();
 const maxResults = 10;
 const waitTimeForRetry = 10*60*1000;
@@ -442,8 +444,9 @@ var processSearchResults = function processSearchResults(JIRAProjects, cursor, u
     // var JQLString = "key in (CONPAMBAN-550)";
 
     if (deltaSince) {
-        var deltaSinceDateObj = new Date(deltaSince);
-        JQLString = JQLString + "  and updatedDate >= '" + deltaSinceDateObj.getFullYear() + "-" + (deltaSinceDateObj.getMonth() + 1) + "-" + deltaSinceDateObj.getDate() + " " + deltaSinceDateObj.getHours() + ":" + deltaSinceDateObj.getMinutes() + "'";
+        // var deltaSinceDateObj = new Date(deltaSince);
+        // JQLString = JQLString + "  and updatedDate >= '" + deltaSinceDateObj.getFullYear() + "-" + (deltaSinceDateObj.getMonth() + 1) + "-" + deltaSinceDateObj.getDate() + " " + deltaSinceDateObj.getHours() + ":" + deltaSinceDateObj.getMinutes() + "'";
+        JQLString = JQLString + "  and updatedDate >= '" + deltaSince + "'";
     }
 
     logger.info('JQLString:' + JQLString);
@@ -792,6 +795,7 @@ function buildPMEntity(specificIssue, updateTime, cb) {
     var PMStoryEntity = {
         key: getModel().ds.key(['PMStory', parseInt(specificIssue.id, 10)]),
         data: [
+            /*
             {
                 name: 'entityUpdateTime',
                 value: updateTime.toJSON()
@@ -800,6 +804,7 @@ function buildPMEntity(specificIssue, updateTime, cb) {
                 name: 'entityUpdateTimeMsec',
                 value: updateTime.getTime()
             },
+            */
             {
                 name: 'createTimeMsec',
                 value: new Date(specificIssue.fields.created).getTime()
@@ -876,6 +881,7 @@ function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, delt
     var EnggStoryEntity = {
         key: EnggStoryEntityKey,
         data: [
+            /*
             {
                 name: 'entityUpdateTimeMsec',
                 value: updateTime.getTime()
@@ -884,6 +890,7 @@ function buildEnggEntity(specificIssue, searchResult, issueCounter, cursor, delt
                 name: 'entityUpdateTime',
                 value: updateTime.toJSON()
             },
+            */
             {
                 name: 'PMStoryID',
                 value: PMStoryID ? parseInt(PMStoryID, 10) : null
@@ -1045,10 +1052,11 @@ function saveEntity(entity, entityType, specificIssue, totalIssuesInthisSearch, 
 }
 
 function searchComplete(updateTime, JIRAProjects) {
-    getModel().writeLastUpdateTime(updateTime.getTime(), (err) => {
+    getModel().writeLastUpdateTime(updateTime, (err) => {
         if (err) logger.error('writeLastUpdateTime failed');
         var resetCursor = 0;
-        setTimeout(processSearchResults, frequencyprocessSearchResults, JIRAProjects, resetCursor, new Date(), updateTime.getTime());
+        // setTimeout(processSearchResults, frequencyprocessSearchResults, JIRAProjects, resetCursor, new Date(), updateTime.getTime());
+        setTimeout(processSearchResults, frequencyprocessSearchResults, JIRAProjects, resetCursor, moment().utcOffset("+05:30").format('YYYY-MM-DD HH:mm'), updateTime);
         return;
     });
 }
@@ -1230,7 +1238,7 @@ function _deltaAgg(optionSelected) {
             return;
         }
         var cursor = 0;
-        processSearchResults(JIRAProjects, cursor, new Date(), deltaSince);
+        processSearchResults(JIRAProjects, cursor, moment().utcOffset("+05:30").format('YYYY-MM-DD HH:mm'), deltaSince);
     });
 }
 

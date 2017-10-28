@@ -154,7 +154,7 @@ div(style="color: #303030;")
                     if !ComboObj.pmstory
                       span(style="background-color: #2873ee;color: #303030;") 'No PM Story linked with these engg stories'
                     else
-                      a(href='https://sailpoint.atlassian.net/browse/' + ComboObj.pmstory.key) #{ComboObj.pmstory.key}
+                      a(href='https://sailpoint.atlassian.net/browse/' + ComboObj.pmstory.key target="_blank") #{ComboObj.pmstory.key}
                       |   #{ComboObj.pmstory.summary}
                       td(style="text-align: right;background-color: #f2f2f2;")
                         span [
@@ -192,7 +192,7 @@ div(style="color: #303030;")
             tr
               td(style="padding: 6px;")
                 span
-                  a(href='https://sailpoint.atlassian.net/browse/' + enggStory.currentKey)  #{enggStory.currentKey}
+                  a(href='https://sailpoint.atlassian.net/browse/' + enggStory.currentKey target="_blank")  #{enggStory.currentKey}
               td(style="padding: 6px;")
                 if (enggStory.pickedUpInThisIteration)
                   span(style="color: #303030;") ***

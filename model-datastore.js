@@ -1143,7 +1143,7 @@ function _getIterationNameAndDates(simplifiedName, cb) {
     var now = new Date().getTime();
     getIterationsWithinDates(now, now, (err, iterations) => {
         if (!iterations ||iterations.length == 0) return cb ('No iteration found', null, null, null);
-        if (iterations.length > 1) return cb ('More than one iterations found', null, null, null);
+        if (iterations.length > 1) return cb ('More than one iteration found', null, null, null);
         var iterationName = iterations[0].key.name;
         var iterationNameArray = iterationName.split(' ');
         var iterationNumber = null;
@@ -1161,7 +1161,7 @@ function _getIterationNameAndDates(simplifiedName, cb) {
             iterationNumber = iterationNameArray[1];
             if (howFarBack.length == 1) newIterationNumber = iterationNumber;
             else newIterationNumber = iterationNumber - howFarBack[1];
-            if (newIterationNumber < 1) return cb ('Invalid iteration', null, null, null);
+            if (newIterationNumber < 1) return cb ('Invalid Iteration', null, null, null);
             if (newIterationNumber <= 9) newIterationName = iterationNameArray[0] + ' ' + '0' + newIterationNumber + ' - ' + iterationNameArray[3];
             else newIterationName = iterationNameArray[0] + ' ' + newIterationNumber + ' - ' + iterationNameArray[3];
         }
@@ -1588,8 +1588,8 @@ function _getIterationDates (iterationName, cb) {
             return;
         }
         if (!entity) {
-            logger.error('Sprint Not Found. iterationName:' + iterationName);
-            cb(null, 'Sprint Not Found');
+            logger.error('Iteration `' + iterationName + '`' + ' not found.');
+            cb(null, 'Iteration `' + iterationName + '`' + ' not found.');
             return;
         }
         cb(null, entity.data.startDate, entity.data.startDateMsec, entity.data.endDate, entity.data.endDateMsec);
