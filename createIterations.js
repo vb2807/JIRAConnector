@@ -6,6 +6,9 @@
 
 const config = require('./config');
 const Datastore = require('@google-cloud/datastore');
+const TWOWEEKSMSEC = 14*24*60*60*1000;
+const THREEWEEKSMSEC = 21*24*60*60*1000;
+
 var winston = require('winston');
 
 var moment = require('moment');
@@ -35,12 +38,26 @@ function getModel() {
 
 process.argv.forEach(function (val, index, array) {
     // console.log(index + ': ' + val);
+
+    if (val == 'help' || val == '--help') {
+        console.log('node createIterations.js [<createCONIteration> or <create2017Iterations> or <create2018Iterations>] [date in YYYY-MM-DD format]');
+        return;
+    }
     if (val == 'createCONIteration') {
         createCONIteration();
         return;
     }
-    if (val == 'createIteration') {
+    if (val == 'create2017Iterations') {
         _create2017Iterations(array[index + 1]);
+        return;
+    }
+    if (val == 'create2018Iterations') {
+        _create2018Iterations(array[index + 1]);
+        return;
+    }
+
+    if (val == 'delete2018Iterations') {
+        _delete2018Iterations();
         return;
     }
 });
@@ -115,15 +132,15 @@ function _create2017Iterations(reqDate, cb) {
     }
     var startDateMsecIteration01 = new Date('2017-01-08T18:00:00.000-05:00').getTime();
     var continueIterationCreation = true;
-    var reqDateMsec = new Date(reqDate);
+    var reqDateMsec = new Date(reqDate).getTime();
 
     var countIterationsRequested = 0;
     var countIterationsRequestedAttempted = 0;
 
     for (var i = 1; continueIterationCreation; i++) {
         var iterationName;
-        var startDateMsec = startDateMsecIteration01 + ((i-1)*14*24*60*60*1000);
-        var endDateMsec = startDateMsec + 14*24*60*60*1000 - 1;
+        var startDateMsec = startDateMsecIteration01 + ((i-1)*TWOWEEKSMSEC);
+        var endDateMsec = startDateMsec + TWOWEEKSMSEC - 1;
         if (endDateMsec <= reqDateMsec) {
             countIterationsRequested++;
             if (i < 10) iterationName = 'Iteration 0' + i + ' - 2017';
@@ -158,6 +175,89 @@ function _create2017Iterations(reqDate, cb) {
                 if (newIterationData) {
                     countIterationsRequestedAttempted++;
                     logger.info('upsertIteration: iterationName:' + newIterationName + '. Start date:' + newIterationData.startDate + '. End date:' + newIterationData.endDate);
+                    // return;
+                }
+            });
+        }
+        else {
+            logger.info('endDateMsec > reqDateMsec, ' + ' endDateMsec:' + endDateMsec + ' reqDateMsec:' + reqDateMsec );
+            continueIterationCreation = false;
+        }
+    }
+
+    if (countIterationsRequested == countIterationsRequestedAttempted) return cb (null);
+}
+
+function _delete2018Iterations() {
+
+}
+
+function _create2018Iterations(reqDate, cb) {
+    if (!reqDate) {
+        logger.error('Provide date until when iterations are to be created. Date format: YYYY-MM-DD');
+        return cb ('Provide date until when iterations are to be created. Date format: YYYY-MM-DD');
+    }
+    var startDateMsecIteration01 = new Date('2017-12-24T18:00:00.000-05:00').getTime();
+    var continueIterationCreation = true;
+    var reqDateMsec = new Date(reqDate + 'T18:00:00.000-05:00').getTime();
+
+    var countIterationsRequested = 0;
+    var countIterationsRequestedAttempted = 0;
+
+    var lastIterationEndDateMSec = null;
+
+    // var Iteration01Duration = THREEWEEKSMSEC;
+    var startDateMsec = null;
+    var endDateMsec = null;
+
+    for (var i = 1; continueIterationCreation; i++) {
+        var iterationName;
+        // first iteration is of 3 weeks, others are of two weeks
+        if (i == 1) {
+            startDateMsec = startDateMsecIteration01;
+            endDateMsec = startDateMsec + THREEWEEKSMSEC - 1;
+        }
+        else {
+            startDateMsec = endDateMsec + 1;
+            endDateMsec = startDateMsec + TWOWEEKSMSEC - 1;
+        }
+
+        if (endDateMsec <= reqDateMsec) {
+            countIterationsRequested++;
+            if (i < 10) iterationName = 'Iteration 0' + i + ' - 2018';
+            else iterationName = 'Iteration ' + i + ' - 2018';
+
+            logger.debug('iterationName:' + iterationName);
+            var iterationData = [
+                {
+                    name: 'startDate',
+                    value: moment(new Date(startDateMsec)).format()
+                },
+                {
+                    name: 'startDateMsec',
+                    value: startDateMsec
+                },
+                {
+                    name: 'endDate',
+                    value: moment(new Date(endDateMsec)).format()
+                },
+                {
+                    name: 'endDateMsec',
+                    value: endDateMsec
+                }
+            ];
+
+            getModel().upsertIteration(iterationName, iterationData, (err, newIterationData, newIterationName) => {
+                if(err) {
+                    countIterationsRequestedAttempted++;
+                    logger.error(err);
+                    return cb (err);
+                }
+                if (newIterationData) {
+                    countIterationsRequestedAttempted++;
+                    logger.info('upsertIteration: iterationName:' + newIterationName + '. Start date:' + newIterationData.startDate + '. End date:' + newIterationData.endDate);
+                    startDateMsec = endDateMsec + 1;
+                    endDateMsec = startDateMsec + TWOWEEKSMSEC - 1;
                     // return;
                 }
             });

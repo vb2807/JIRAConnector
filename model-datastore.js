@@ -1033,6 +1033,9 @@ function _publishOnHarbor(iterations, html) {
 
 function _fetchIterationView (reportType, flagOnlyEnggStoriesPickedUpInIteration, cb) {
     _getIterationsAndStartEndDates(reportType, (err, iterations, startDateMsec, endDateMsec) => {
+        if (err) {
+            return cb (err);
+        }
         asyncFetchEnggStoriesForADuration (iterations, (err, enggEntitiesChangedinIterations) => {
             if (err) {
                 logger.error(err);
@@ -1150,17 +1153,17 @@ function _getIterationNameAndDates(simplifiedName, cb) {
         var newIterationNumber = null;
         var newIterationName = null;
         if (iterationNameArray[0] == 'CON') {
-            iterationNumber = iterationNameArray[3];
+            iterationNumber = parseInt(iterationNameArray[3]);
             if (howFarBack.length == 1) newIterationNumber = iterationNumber;
-            else newIterationNumber = iterationNumber - howFarBack[1];
+            else newIterationNumber = iterationNumber - parseInt(howFarBack[1]);
             if (newIterationNumber < 1) return cb ('Invalid iteration', null, null, null);
             if (newIterationNumber <= 9) newIterationName = 'CON - Iteration 0' + newIterationNumber;
             else newIterationName = 'CON - Iteration ' + newIterationNumber;
         }
         else {
-            iterationNumber = iterationNameArray[1];
+            iterationNumber = parseInt(iterationNameArray[1]);
             if (howFarBack.length == 1) newIterationNumber = iterationNumber;
-            else newIterationNumber = iterationNumber - howFarBack[1];
+            else newIterationNumber = iterationNumber - parseInt(howFarBack[1]);
             if (newIterationNumber < 1) return cb ('Invalid Iteration', null, null, null);
             if (newIterationNumber <= 9) newIterationName = iterationNameArray[0] + ' ' + '0' + newIterationNumber + ' - ' + iterationNameArray[3];
             else newIterationName = iterationNameArray[0] + ' ' + newIterationNumber + ' - ' + iterationNameArray[3];
@@ -1589,7 +1592,7 @@ function _getIterationDates (iterationName, cb) {
         }
         if (!entity) {
             logger.error('Iteration `' + iterationName + '`' + ' not found.');
-            cb(null, 'Iteration `' + iterationName + '`' + ' not found.');
+            cb('Iteration `' + iterationName + '`' + ' not found.');
             return;
         }
         cb(null, entity.data.startDate, entity.data.startDateMsec, entity.data.endDate, entity.data.endDateMsec);

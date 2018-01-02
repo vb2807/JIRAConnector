@@ -86,10 +86,16 @@ router.get('/iterationview', (req, res, next) => {
     getModel().fetchIterationView(req.query.type, false, (err, scrums, comboObjs, connectivityInvestmentBuckets, connectivityInvestmentStoryPoints, connectivityInvestmentDoneStoryPoints, connectivityInvestmentCountStories, connectivityInvestmentCountDoneStories, iterationSummary, iterations, startDateMsec, endDateMsec) => {
         if (err) {
             JIRAConnector.logger.error(err);
+            res.render('error.jade', {
+                err: err
+            });
             return;
         }
         if(!comboObjs) {
             JIRAConnector.logger.error('ComboObjs in null.');
+            res.render('error.jade', {
+                err: 'ComboObjs in null.'
+            });
             return;
         }
         // console.log(pmstories);
