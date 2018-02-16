@@ -26,8 +26,12 @@ nconf
     'DATA_BACKEND',
     'GCLOUD_PROJECT',
     'PORT',
-    'JIRA_USER_ID',
-    'JIRA_PASSWORD',
+//    'JIRA_USER_ID',
+//    'JIRA_PASSWORD',
+    'CONSUMER_KEY',
+//    'PRIVATE_KEY_PEM_FILE',
+    'ACCESS_TOKEN',
+    'TOKEN_SECRET',
     'HARBOR_USER_ID',
     'HARBOR_PASSWORD'
   ])
@@ -42,10 +46,14 @@ nconf
 // Check for required settings
 checkConfig('DATA_BACKEND');
 checkConfig('GCLOUD_PROJECT');
-checkConfig('JIRA_USER_ID');
-checkConfig('JIRA_PASSWORD');
+// checkConfig('JIRA_USER_ID');
+// checkConfig('JIRA_PASSWORD');
 checkConfig('HARBOR_USER_ID');
 checkConfig('HARBOR_PASSWORD');
+checkConfig('CONSUMER_KEY');
+checkConfig('ACCESS_TOKEN');
+checkConfig('TOKEN_SECRET');
+// checkConfig('PRIVATE_KEY_PEM_FILE');
 
 function checkConfig (setting) {
   if (!nconf.get(setting)) {

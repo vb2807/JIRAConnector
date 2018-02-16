@@ -15,6 +15,22 @@ const Datastore = require('@google-cloud/datastore');
 var schedule = require('node-schedule');
 var winston = require('winston');
 // require('winston-gae');
+var fs = require('fs');
+const PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n" +
+    "MIICXAIBAAKBgQDtKOyi2Ia5rTrvthehZmYsT6+DbPBrNRiXqPsuVP7EjIbWpKHw\n" +
+    "Bkf4ac9YTdhRLBv/MklxAhXjS17Y4Kc5fvXaeuv1Yli1MUnF9zhK5WgV4d/fHeQm\n" +
+    "uP63QX5Om6hlmI4U44OPyBWosmELBo80fQ6PGmcKHd7UV396M88UrZWIDwIDAQAB\n" +
+    "AoGBAK475r4s/a3kCuyZhvrY1C+xy2xu2KKqu4qQZxk+8H1OELIY+a/xrWZftilV\n" +
+    "55qbIWZ3d2VC9vmqIeCMC8896zhSBOLb+czti5OUX3kmWmvmkYvGBx1fQIqyn50U\n" +
+    "AVohzau7mNSteKG3VX+ero1d4+z7lymjAdR8Y9SFOuY+/shBAkEA+oezwhtbTFZQ\n" +
+    "3yaO6bBQPFTOVTs0d1y+x7S/EHQImtNytZmzkoT8BnALmZ9S+w+/C+X2D9so9UNr\n" +
+    "27Va16rNxwJBAPJWfc8hrU9Z1Zt834iDP/6rME4OpuRiedoYw3BqXzqOTaeP5Wfr\n" +
+    "k8RsvTfR5KG9wrluskvtd/e+yLqoiqzHk3kCQF2achkl63icD18wotjBHVlNPkIt\n" +
+    "+q5WIpmu+GwHTme6dPNQ1/z4Xslw94SQOIrBGVoyszq9YZIxfIz8N1K46GUCQDPp\n" +
+    "kUPIzA5+iQKo6l2c+B1+4HcoLlooOkAdI+i18LZje4EUkykCzwG55YLKpLZ9JvSA\n" +
+    "IROgyB07MlbB+grvKckCQGqdByN+55oUKFGIzqBp+7K6VQ2aT5qvjv/c5TzoqApq\n" +
+    "zOQbqbMpphoqdk1IvfUNyXg4PFBTmA1TMsys6xJZgz8=\n" +
+    "-----END RSA PRIVATE KEY-----"
 
 var moment = require('moment');
 
@@ -48,9 +64,18 @@ var JiraClient = require('jira-connector');
 
 var jira = new JiraClient({
     host: 'sailpoint.atlassian.net',
+    /*
     basic_auth: {
         username: config.get('JIRA_USER_ID'),
         password: config.get('JIRA_PASSWORD')
+    },
+    */
+    oauth: {
+        consumer_key: config.get('CONSUMER_KEY'),
+        // private_key: fs.readFileSync(config.get('PRIVATE_KEY_PEM_FILE'), 'utf8'),
+        private_key: PRIVATE_KEY,
+        token: config.get('ACCESS_TOKEN'),
+        token_secret: config.get('TOKEN_SECRET')
     }
 });
 
