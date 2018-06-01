@@ -681,7 +681,7 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         let entityData = fromDatastore(entities[i]);
 
         var dateCreatedMsec = new Date(entityData.dateCreated).getTime();
-        var firstSprintStartDateMsec = new Date(entityData.firstSprintStartDate).getTime();
+        // var firstSprintStartDateMsec = new Date(entityData.firstSprintStartDate).getTime();
 
         logger.debug('entityData:' + JSON.stringify(entityData));
 
@@ -698,7 +698,7 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
         var storyCreatedPriorToThisIteration = false;
 
         if (dateCreatedMsec <= iterationStartDateMsec) storyCreatedPriorToThisIteration = true;
-        var queueTime = parseInt((!entityData.firstSprintStartDate ? (new Date().getTime() - dateCreatedMsec) /(oneDayInMsec) : (firstSprintStartDateMsec - dateCreatedMsec) /(oneDayInMsec)), 10);
+        var queueTime = parseInt((!entityData.inProgressDateMsec ? (new Date().getTime() - dateCreatedMsec) /(oneDayInMsec) : (entityData.inProgressDateMsec - dateCreatedMsec) /(oneDayInMsec)), 10);
         var months = 0;
         while (queueTime >= 30) {
             months++;
@@ -717,11 +717,11 @@ function buildSpecificComboObj (iterationStartDateMsec, iterationEndDateMsec, pm
 
         var cycleTime;
         var cycleTimeStr = null;
-        if (entityData.firstSprintStartDate) {
-            cycleTime = parseInt((entityData.status == 'Accepted'? ((entityData.acceptedDateMsec - firstSprintStartDateMsec) / (oneDayInMsec)) : ((new Date().getTime() - firstSprintStartDateMsec) / (oneDayInMsec))), 10);
+        if (entityData.inProgressDateMsec) {
+            cycleTime = parseInt((entityData.currentStatus == 'Accepted'? ((entityData.acceptedDateMsec - entityData.inProgressDateMsec) / (oneDayInMsec)) : ((new Date().getTime() - entityData.inProgressDateMsec) / (oneDayInMsec))), 10);
         }
         else {
-            cycleTime = parseInt((entityData.status == 'Accepted'? ((entityData.acceptedDateMsec - dateCreatedMsec) / (oneDayInMsec)) : ((new Date().getTime() - dateCreatedMsec) / (oneDayInMsec))), 10);
+            cycleTime = parseInt((entityData.currentStatus == 'Accepted'? ((entityData.acceptedDateMsec - dateCreatedMsec) / (oneDayInMsec)) : ((new Date().getTime() - dateCreatedMsec) / (oneDayInMsec))), 10);
             // if (entityData.status == 'Accepted') cycleTime = parseInt(((entityData.acceptedDateMsec - dateCreatedMsec) / (oneDayInMsec)), 10);
         }
         months = 0;
